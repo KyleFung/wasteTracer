@@ -7,14 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2C0271DA220FED2300606229 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0271D9220FED2300606229 /* main.swift */; };
+		2C509BFA2311D4FC0027C84E /* FileUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C509BF92311D4FC0027C84E /* FileUtils.swift */; };
+		2C509BFC2311D6600027C84E /* Intersection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C509BFB2311D6600027C84E /* Intersection.swift */; };
+		2C74260F2211442F00579710 /* kdNode.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C74260E2211442F00579710 /* kdNode.c */; };
+		2C74261B22141D1D00579710 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0271D9220FED2300606229 /* main.swift */; };
+		2C8B6FC22217A1630059234A /* StreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8B6FC12217A1630059234A /* StreamReader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		2C0271D4220FED2300606229 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
+			buildActionMask = 8;
+			dstPath = /usr/share/man/man1;
 			dstSubfolderSpec = 0;
 			files = (
 			);
@@ -25,6 +29,12 @@
 /* Begin PBXFileReference section */
 		2C0271D6220FED2300606229 /* kdTree */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kdTree; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C0271D9220FED2300606229 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		2C0271E62210F64200606229 /* kdTree-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "kdTree-Bridging-Header.h"; sourceTree = "<group>"; };
+		2C509BF92311D4FC0027C84E /* FileUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUtils.swift; sourceTree = "<group>"; };
+		2C509BFB2311D6600027C84E /* Intersection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Intersection.swift; sourceTree = "<group>"; };
+		2C74260D2211442F00579710 /* kdNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kdNode.h; sourceTree = "<group>"; };
+		2C74260E2211442F00579710 /* kdNode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kdNode.c; sourceTree = "<group>"; };
+		2C8B6FC12217A1630059234A /* StreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamReader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +67,13 @@
 		2C0271D8220FED2300606229 /* kdTree */ = {
 			isa = PBXGroup;
 			children = (
+				2C509BFB2311D6600027C84E /* Intersection.swift */,
 				2C0271D9220FED2300606229 /* main.swift */,
+				2C0271E62210F64200606229 /* kdTree-Bridging-Header.h */,
+				2C74260D2211442F00579710 /* kdNode.h */,
+				2C74260E2211442F00579710 /* kdNode.c */,
+				2C8B6FC12217A1630059234A /* StreamReader.swift */,
+				2C509BF92311D4FC0027C84E /* FileUtils.swift */,
 			);
 			path = kdTree;
 			sourceTree = "<group>";
@@ -93,6 +109,7 @@
 				TargetAttributes = {
 					2C0271D5220FED2300606229 = {
 						CreatedOnToolsVersion = 10.1;
+						LastSwiftMigration = 1010;
 					};
 				};
 			};
@@ -118,7 +135,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2C0271DA220FED2300606229 /* main.swift in Sources */,
+				2C8B6FC22217A1630059234A /* StreamReader.swift in Sources */,
+				2C74260F2211442F00579710 /* kdNode.c in Sources */,
+				2C509BFA2311D4FC0027C84E /* FileUtils.swift in Sources */,
+				2C74261B22141D1D00579710 /* main.swift in Sources */,
+				2C509BFC2311D6600027C84E /* Intersection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,8 +264,16 @@
 		2C0271DE220FED2300606229 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "kdTree/kdTree-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 4.2;
 			};
 			name = Debug;
@@ -252,8 +281,15 @@
 		2C0271DF220FED2300606229 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "kdTree/kdTree-Bridging-Header.h";
 				SWIFT_VERSION = 4.2;
 			};
 			name = Release;
