@@ -33,7 +33,7 @@ let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
 var imagePixels = [Pixel](repeating: Pixel(), count: Int(res.x * res.y))
 
-let (faces, vertices) = getTrianglesFrom(file: objFile)
+let (faces, vertices, materials) = loadModel(file: objFile)
 let rawVertices: UnsafeMutablePointer<Vertex> = UnsafeMutablePointer(mutating: vertices)
 
 for x in 0..<res.x {

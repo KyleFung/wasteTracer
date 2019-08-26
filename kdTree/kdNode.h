@@ -21,6 +21,15 @@ typedef struct ExplicitTriangle {
     simd_float3 v2;
 } ExplicitTriangle;
 
+typedef struct Material {
+    char *materialName;
+    simd_float3 diffColor;
+    simd_float3 specColor;
+    float specPower;
+    char *diffMapName;
+    uint32_t diffMapIndex;
+} Material;
+
 typedef struct Vertex {
     simd_float3 pos;
     simd_float2 uv;
