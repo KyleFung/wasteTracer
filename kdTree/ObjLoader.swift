@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 extension Triangle {
     init(_ v0: UInt32, _ v1: UInt32, _ v2: UInt32) {
@@ -10,15 +11,27 @@ extension Triangle {
 extension Material {
     init(_ name: String) {
         self.init()
-        self.materialName = UnsafeMutablePointer<Int8>(mutating: (name as NSString).utf8String)
+        self.materialName = toUnsafe(name)
     }
 }
 
-func loadModel(file: String) -> ([Triangle], [Vertex], [Material]) {
+extension Texture {
+    init(_ name: String) {
+        self.init()
+        self.textureName = toUnsafe(name)
+    }
+}
+
+func toUnsafe(_ string: String) -> UnsafeMutablePointer<Int8> {
+    return UnsafeMutablePointer<Int8>(mutating: (string as NSString).utf8String!)
+}
+
+func loadModel(file: String) -> ([Triangle], [Vertex], [Material], [Texture]) {
     let dirPath = URL(string: file)!.deletingLastPathComponent().absoluteString
     var vertexCount: Int = 0
     var faceCount: Int = 0
     var materials: [Material] = []
+    var textures: [Texture] = []
 
     if let aStreamReader = StreamReader(path: file) {
         defer {
@@ -34,7 +47,7 @@ func loadModel(file: String) -> ([Triangle], [Vertex], [Material]) {
             if (line.hasPrefix("mtllib")) {
                 // Load in a material library
                 let fileName = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")[1]
-                loadMaterials(file: dirPath + fileName, materials: &materials)
+                loadMaterials(file: dirPath + fileName, materials: &materials, textures: &textures)
             }
         }
     } else {
@@ -79,10 +92,11 @@ func loadModel(file: String) -> ([Triangle], [Vertex], [Material]) {
         }
     }
 
-    return (faces, vertices, materials)
+    return (faces, vertices, materials, textures)
 }
 
-func loadMaterials(file: String, materials: inout [Material]) {
+func loadMaterials(file: String, materials: inout [Material], textures: inout [Texture]) {
+    let dirPath = URL(string: file)!.deletingLastPathComponent().absoluteString
     if let aStreamReader = StreamReader(path: file) {
         defer {
             aStreamReader.close()
@@ -120,6 +134,13 @@ func loadMaterials(file: String, materials: inout [Material]) {
                 continue
             } else if trimmedLine.hasPrefix("d ") {
                 continue
+            } else if trimmedLine.hasPrefix("map_Kd ") {
+                /*let textureName = trimmedLine.components(separatedBy: " ")[1]
+                if let texture = loadTexture(file: dirPath + textureName) {
+                    newMaterial?.diffMapName = toUnsafe(textureName)
+                    newMaterial?.diffMapIndex = UInt32(textures.count)
+                    textures.append(texture)
+                }*/
             } else {
                 print("Unknown material attribute: ", trimmedLine)
             }
@@ -132,4 +153,44 @@ func loadMaterials(file: String, materials: inout [Material]) {
     } else {
         print("Failed to load %s", file)
     }
+}
+
+func loadTexture(file: String) -> Texture? {
+    var width = 0
+    var height = 0
+    var pixelValues: [UInt8]?
+    if let imageRef = loadImage(file: file) {
+        width = imageRef.width
+        height = imageRef.height
+        let bitsPerComponent = imageRef.bitsPerComponent
+        let bytesPerRow = imageRef.bytesPerRow
+        let totalBytes = height * bytesPerRow
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        pixelValues = [UInt8](repeating: 0, count: totalBytes)
+
+        let contextRef = CGContext(data: &pixelValues, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        contextRef?.draw(imageRef, in: CGRect(x: 0.0, y: 0.0, width: CGFloat(width), height: CGFloat(height)))
+
+        if let pixels = pixelValues {
+            var texture = Texture(file)
+            texture.width = UInt32(width)
+            texture.height = UInt32(height)
+            texture.data = UnsafeMutablePointer<UInt8>(mutating: pixels)
+            return texture
+        }
+    }
+
+    print("Texture loading failed ")
+    return nil
+}
+
+private func loadImage(file: String) -> CGImage? {
+    let img = NSImage(contentsOfFile: file)
+    if let img = img {
+        var imageRect = CGRect(x: 0, y: 0, width: img.size.width, height: img.size.height)
+        return img.cgImage(forProposedRect: &imageRect, context: nil, hints: nil)
+    }
+    print("Error loading image file ", file)
+    return nil
 }

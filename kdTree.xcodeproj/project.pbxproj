@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2C509BFA2311D4FC0027C84E /* FileUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C509BF92311D4FC0027C84E /* FileUtils.swift */; };
-		2C509BFC2311D6600027C84E /* Intersection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C509BFB2311D6600027C84E /* Intersection.swift */; };
+		2C509BFF231392CE0027C84E /* ObjLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C509BFE231392CE0027C84E /* ObjLoader.swift */; };
 		2C74260F2211442F00579710 /* kdNode.c in Sources */ = {isa = PBXBuildFile; fileRef = 2C74260E2211442F00579710 /* kdNode.c */; };
 		2C74261B22141D1D00579710 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0271D9220FED2300606229 /* main.swift */; };
 		2C8B6FC22217A1630059234A /* StreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8B6FC12217A1630059234A /* StreamReader.swift */; };
@@ -31,7 +31,7 @@
 		2C0271D9220FED2300606229 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		2C0271E62210F64200606229 /* kdTree-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "kdTree-Bridging-Header.h"; sourceTree = "<group>"; };
 		2C509BF92311D4FC0027C84E /* FileUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUtils.swift; sourceTree = "<group>"; };
-		2C509BFB2311D6600027C84E /* Intersection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Intersection.swift; sourceTree = "<group>"; };
+		2C509BFE231392CE0027C84E /* ObjLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ObjLoader.swift; sourceTree = "<group>"; };
 		2C74260D2211442F00579710 /* kdNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kdNode.h; sourceTree = "<group>"; };
 		2C74260E2211442F00579710 /* kdNode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kdNode.c; sourceTree = "<group>"; };
 		2C8B6FC12217A1630059234A /* StreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamReader.swift; sourceTree = "<group>"; };
@@ -67,7 +67,7 @@
 		2C0271D8220FED2300606229 /* kdTree */ = {
 			isa = PBXGroup;
 			children = (
-				2C509BFB2311D6600027C84E /* Intersection.swift */,
+				2C509BFE231392CE0027C84E /* ObjLoader.swift */,
 				2C0271D9220FED2300606229 /* main.swift */,
 				2C0271E62210F64200606229 /* kdTree-Bridging-Header.h */,
 				2C74260D2211442F00579710 /* kdNode.h */,
@@ -137,9 +137,9 @@
 			files = (
 				2C8B6FC22217A1630059234A /* StreamReader.swift in Sources */,
 				2C74260F2211442F00579710 /* kdNode.c in Sources */,
+				2C509BFF231392CE0027C84E /* ObjLoader.swift in Sources */,
 				2C509BFA2311D4FC0027C84E /* FileUtils.swift in Sources */,
 				2C74261B22141D1D00579710 /* main.swift in Sources */,
-				2C509BFC2311D6600027C84E /* Intersection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

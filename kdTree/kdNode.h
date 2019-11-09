@@ -30,6 +30,13 @@ typedef struct Material {
     uint32_t diffMapIndex;
 } Material;
 
+typedef struct Texture {
+    char *textureName;
+    uint8_t *data;
+    uint32_t width;
+    uint32_t height;
+} Texture;
+
 typedef struct Vertex {
     simd_float3 pos;
     simd_float2 uv;
