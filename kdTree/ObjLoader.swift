@@ -26,7 +26,7 @@ func toUnsafe(_ string: String) -> UnsafeMutablePointer<Int8> {
     return UnsafeMutablePointer<Int8>(mutating: (string as NSString).utf8String!)
 }
 
-func loadModel(file: String) -> ([Triangle], [Vertex], [Material], [Texture]) {
+func loadModel(file: String) -> Model {
     let dirPath = URL(string: file)!.deletingLastPathComponent().absoluteString
     var vertexCount: Int = 0
     var faceCount: Int = 0
@@ -92,7 +92,12 @@ func loadModel(file: String) -> ([Triangle], [Vertex], [Material], [Texture]) {
         }
     }
 
-    return (faces, vertices, materials, textures)
+    return Model(faces: UnsafeMutablePointer(mutating: faces),
+                 vertices: UnsafeMutablePointer(mutating: vertices),
+                 materials: UnsafeMutablePointer(mutating: materials),
+                 faceCount: UInt32(faceCount),
+                 vertCount: UInt32(vertexCount),
+                 matCount: UInt32(materials.count))
 }
 
 func loadMaterials(file: String, materials: inout [Material], textures: inout [Texture]) {

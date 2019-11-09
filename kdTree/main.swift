@@ -33,8 +33,7 @@ let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
 var imagePixels = [Pixel](repeating: Pixel(), count: Int(res.x * res.y))
 
-let (faces, vertices, materials, textures) = loadModel(file: objFile)
-let rawVertices: UnsafeMutablePointer<Vertex> = UnsafeMutablePointer(mutating: vertices)
+let model = loadModel(file: objFile)
 
 for x in 0..<res.x {
     for y in 0..<res.y {
@@ -43,12 +42,8 @@ for x in 0..<res.x {
         let ray = Ray(pos: eye, dir: dir)
 
         imagePixels[Int(y * res.x + x)] = Pixel(128)
-        // Try to search for an intersection
-        for t in faces {
-            if intersectionTriangle(t, rawVertices, ray) > 0.0 {
-                imagePixels[Int(y * res.x + x)] = Pixel(255)
-                break
-            }
+        if intersectionModel(model, ray) > 0.0 {
+            imagePixels[Int(y * res.x + x)] = Pixel(255)
         }
     }
 }

@@ -52,6 +52,15 @@ typedef struct AABB {
     simd_float3 min;
 } AABB;
 
+typedef struct Model {
+    Triangle *faces;
+    Vertex *vertices;
+    Material *materials;
+    uint32_t faceCount;
+    uint32_t vertCount;
+    uint32_t matCount;
+} Model;
+
 AABB emptyBox() {
     AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
     return box;
@@ -59,4 +68,5 @@ AABB emptyBox() {
 
 float intersectionBox(AABB b, Ray r);
 float intersectionTriangle(Triangle t, Vertex v[], Ray r);
+float intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);

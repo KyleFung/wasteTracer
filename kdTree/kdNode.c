@@ -28,6 +28,17 @@ simd_float3 normalOf(ExplicitTriangle t) {
     return simd_normalize(simd_cross(t.v1 - t.v0, t.v2 - t.v0));
 }
 
+float intersectionModel(Model model, Ray r) {
+    float closest = -10000.0f;
+    for (int f = 0; f < model.faceCount; f++) {
+        float t = intersectionTriangle(model.faces[f], model.vertices, r);
+        if (t > 0.0) {
+            closest = min(fabsf(closest), t);
+        }
+    }
+    return closest;
+}
+
 float intersectionTriangle(Triangle triangle, Vertex vertexList[], Ray r) {
     ExplicitTriangle t;
     t.v0 = vertexList[triangle.v[0]].pos;
