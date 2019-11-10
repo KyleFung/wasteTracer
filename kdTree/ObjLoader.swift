@@ -57,6 +57,8 @@ func loadModel(file: String) -> Model {
     // Collect vertices
     var vertices = [Vertex](repeating: Vertex(), count: vertexCount)
     vertexCount = 0
+    var aabbMin = simd_float3(Float.infinity)
+    var aabbMax = simd_float3(-Float.infinity)
     if let aStreamReader = StreamReader(path: file) {
         defer {
             aStreamReader.close()
@@ -64,11 +66,15 @@ func loadModel(file: String) -> Model {
         while let line = aStreamReader.nextLine() {
             if (line.hasPrefix("v") && !line.hasPrefix("vt")) {
                 let vertex = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
-                    let x: Float = Float(vertex[1])!
-                    let y: Float = Float(vertex[2])!
-                    let z: Float = Float(vertex[3])!
-                    vertices[vertexCount].pos = simd_float3(x, y, z)
-                    vertexCount += 1
+                let x: Float = Float(vertex[1])!
+                let y: Float = Float(vertex[2])!
+                let z: Float = Float(vertex[3])!
+
+                let v = simd_float3(x, y, z)
+                aabbMin = min(aabbMin, v)
+                aabbMax = max(aabbMax, v)
+                vertices[vertexCount].pos = v
+                vertexCount += 1
             }
         }
     }
@@ -97,7 +103,8 @@ func loadModel(file: String) -> Model {
                  materials: UnsafeMutablePointer(mutating: materials),
                  faceCount: UInt32(faceCount),
                  vertCount: UInt32(vertexCount),
-                 matCount: UInt32(materials.count))
+                 matCount: UInt32(materials.count),
+                 aabb: AABB(max: aabbMax, min: aabbMin))
 }
 
 func loadMaterials(file: String, materials: inout [Material], textures: inout [Texture]) {

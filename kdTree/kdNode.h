@@ -59,6 +59,7 @@ typedef struct Model {
     uint32_t faceCount;
     uint32_t vertCount;
     uint32_t matCount;
+    AABB aabb;
 } Model;
 
 AABB emptyBox() {

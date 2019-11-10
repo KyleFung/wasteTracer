@@ -30,6 +30,12 @@ simd_float3 normalOf(ExplicitTriangle t) {
 
 float intersectionModel(Model model, Ray r) {
     float closest = -10000.0f;
+
+    // Try the bounding box first
+    float boxIntersection = intersectionBox(model.aabb, r);
+    if (!isfinite(boxIntersection) || boxIntersection <= 0.0) {
+        return closest;
+    }
     for (int f = 0; f < model.faceCount; f++) {
         float t = intersectionTriangle(model.faces[f], model.vertices, r);
         if (t > 0.0) {
