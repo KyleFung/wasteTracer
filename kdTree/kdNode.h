@@ -52,6 +52,12 @@ typedef struct AABB {
     simd_float3 min;
 } AABB;
 
+typedef struct Transform {
+    simd_float3 scale;
+    simd_float3x3 rotation;
+    simd_float3 translation;
+} Transform;
+
 typedef struct Model {
     Triangle *faces;
     Vertex *vertices;
@@ -59,6 +65,8 @@ typedef struct Model {
     uint32_t faceCount;
     uint32_t vertCount;
     uint32_t matCount;
+    Transform transform;
+    simd_float3 centroid;
     AABB aabb;
 } Model;
 
@@ -68,6 +76,6 @@ AABB emptyBox() {
 }
 
 float intersectionBox(AABB b, Ray r);
-float intersectionTriangle(Triangle t, Vertex v[], Ray r);
+float intersectionTriangle(ExplicitTriangle t, Ray r);
 float intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);

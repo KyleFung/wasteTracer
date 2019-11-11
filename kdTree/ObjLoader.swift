@@ -59,6 +59,7 @@ func loadModel(file: String) -> Model {
     vertexCount = 0
     var aabbMin = simd_float3(Float.infinity)
     var aabbMax = simd_float3(-Float.infinity)
+    var centroid = simd_float3(0)
     if let aStreamReader = StreamReader(path: file) {
         defer {
             aStreamReader.close()
@@ -73,10 +74,12 @@ func loadModel(file: String) -> Model {
                 let v = simd_float3(x, y, z)
                 aabbMin = min(aabbMin, v)
                 aabbMax = max(aabbMax, v)
+                centroid += v
                 vertices[vertexCount].pos = v
                 vertexCount += 1
             }
         }
+        centroid /= Float(vertexCount)
     }
 
     // Collect faces
@@ -104,6 +107,10 @@ func loadModel(file: String) -> Model {
                  faceCount: UInt32(faceCount),
                  vertCount: UInt32(vertexCount),
                  matCount: UInt32(materials.count),
+                 transform: Transform(scale: simd_float3(1.0),
+                                      rotation: simd_float3x3.init(diagonal: simd_float3(1.0)),
+                                      translation: simd_float3(0.0)),
+                 centroid: centroid,
                  aabb: AABB(max: aabbMax, min: aabbMin))
 }
 

@@ -31,26 +31,36 @@ simd_float3 normalOf(ExplicitTriangle t) {
 float intersectionModel(Model model, Ray r) {
     float closest = -10000.0f;
 
+    // Perform model transform on the model (by inverting the transform on the ray)
+    r.pos -= model.transform.translation;
+    r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
+    r.pos /= model.transform.scale;
+    r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
+
+    // Transform ray such that the centroid of the model is at the origin
+    r.pos += model.centroid;
+
     // Try the bounding box first
     float boxIntersection = intersectionBox(model.aabb, r);
     if (!isfinite(boxIntersection) || boxIntersection <= 0.0) {
         return closest;
     }
     for (int f = 0; f < model.faceCount; f++) {
-        float t = intersectionTriangle(model.faces[f], model.vertices, r);
-        if (t > 0.0) {
-            closest = min(fabsf(closest), t);
+        Triangle triangle = model.faces[f];
+        ExplicitTriangle t;
+        t.v0 = model.vertices[triangle.v[0]].pos;
+        t.v1 = model.vertices[triangle.v[1]].pos;
+        t.v2 = model.vertices[triangle.v[2]].pos;
+
+        float intersection = intersectionTriangle(t, r);
+        if (intersection > 0.0) {
+            closest = min(fabsf(closest), intersection);
         }
     }
     return closest;
 }
 
-float intersectionTriangle(Triangle triangle, Vertex vertexList[], Ray r) {
-    ExplicitTriangle t;
-    t.v0 = vertexList[triangle.v[0]].pos;
-    t.v1 = vertexList[triangle.v[1]].pos;
-    t.v2 = vertexList[triangle.v[2]].pos;
-
+float intersectionTriangle(ExplicitTriangle t, Ray r) {
     // Triangle plane
     simd_float3 nor = normalOf(t);
     float d = simd_dot(nor, t.v0);

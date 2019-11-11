@@ -27,13 +27,14 @@ func primaryRay(pxUV: simd_float2, eye: simd_float3, lookAt: simd_float3, up: si
     return dir;
 }
 
+// Load in model and podium mesh
+var model = loadModel(file: objFile)
+
 // Ray trace
-let eye = simd_float3(0.0, 1.0, 2.0)
+let eye = simd_float3(0.0, 0.0, 4.0)
 let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
 var imagePixels = [Pixel](repeating: Pixel(), count: Int(res.x * res.y))
-
-let model = loadModel(file: objFile)
 
 for x in 0..<res.x {
     for y in 0..<res.y {
