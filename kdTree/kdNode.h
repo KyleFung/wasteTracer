@@ -75,7 +75,11 @@ AABB emptyBox() {
     return box;
 }
 
+// Geometry
 float intersectionBox(AABB b, Ray r);
 float intersectionTriangle(ExplicitTriangle t, Ray r);
 float intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);
+
+// Tracing
+Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up);

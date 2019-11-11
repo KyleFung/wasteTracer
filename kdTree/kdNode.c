@@ -88,6 +88,27 @@ float intersectionTriangle(ExplicitTriangle t, Ray r) {
     }
 }
 
+Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    const float focal = 1.0f;
+    const float ar = res.x / res.y;
+    const float screenHeight = 2.0f;
+    const float screenWidth = ar * screenHeight;
+
+    simd_float3 right = simd_cross(lookAt, up);
+
+    float screenX = (2.0f * uv.x) - 1.0f;
+    float screenY = (2.0f * uv.y) - 1.0f;
+
+    simd_float3 u = screenX * simd_normalize(right) * screenWidth * 0.5f;
+    simd_float3 v = screenY * simd_normalize(up) * screenHeight * 0.5f;
+    simd_float3 dir = simd_normalize(focal * simd_normalize(lookAt) + u + v);
+
+    Ray ray;
+    ray.dir = dir;
+    ray.pos = eye;
+    return ray;
+}
+
 //
 //float intersectTree(kdNode *tree, int index, int maxIndex, AABB box, Ray ray, int dim) {
 //    // Check base case or complete miss
