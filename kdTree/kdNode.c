@@ -24,12 +24,8 @@ float intersectionBox(AABB b, Ray r) {
     return INFINITY;
 }
 
-simd_float3 normalOf(ExplicitTriangle t) {
-    return simd_normalize(simd_cross(t.v1 - t.v0, t.v2 - t.v0));
-}
-
-float intersectionModel(Model model, Ray r) {
-    float closest = -10000.0f;
+Intersection intersectionModel(Model model, Ray r) {
+    Intersection result = missedIntersection();
 
     // Perform model transform on the model (by inverting the transform on the ray)
     r.pos -= model.transform.translation;
@@ -43,7 +39,7 @@ float intersectionModel(Model model, Ray r) {
     // Try the bounding box first
     float boxIntersection = intersectionBox(model.aabb, r);
     if (!isfinite(boxIntersection) || boxIntersection <= 0.0) {
-        return closest;
+        return result;
     }
     for (int f = 0; f < model.faceCount; f++) {
         Triangle triangle = model.faces[f];
@@ -52,15 +48,15 @@ float intersectionModel(Model model, Ray r) {
         t.v1 = model.vertices[triangle.v[1]].pos;
         t.v2 = model.vertices[triangle.v[2]].pos;
 
-        float intersection = intersectionTriangle(t, r);
-        if (intersection > 0.0) {
-            closest = min(fabsf(closest), intersection);
+        Intersection intersection = intersectionTriangle(t, r);
+        if (isHit(intersection) && (intersection.distance < result.distance || !isHit(result))) {
+            result = intersection;
         }
     }
-    return closest;
+    return result;
 }
 
-float intersectionTriangle(ExplicitTriangle t, Ray r) {
+Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
     // Triangle plane
     simd_float3 nor = normalOf(t);
     float d = simd_dot(nor, t.v0);
@@ -71,7 +67,7 @@ float intersectionTriangle(ExplicitTriangle t, Ray r) {
 
     // Plane intersection behind ray (miss)
     if (hit <= 0) {
-        return -10000.0f;
+        return missedIntersection();
     }
 
     // Inside outside test
@@ -81,10 +77,10 @@ float intersectionTriangle(ExplicitTriangle t, Ray r) {
 
     if (side0 * side1 > 0 && side1 * side2 > 0) {
         // Intersection
-        return hit;
+        return makeIntersection(hit, nor);
     } else {
         // Not inside triangle (miss)
-        return -10000.0f;
+        return missedIntersection();
     }
 }
 
@@ -109,7 +105,30 @@ Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 loo
     return ray;
 }
 
-//
+// Struct helpers
+simd_float3 normalOf(ExplicitTriangle t) {
+    return simd_normalize(simd_cross(t.v1 - t.v0, t.v2 - t.v0));
+}
+
+bool isHit(Intersection intersection) {
+    return !isnan(intersection.distance);
+}
+
+Intersection makeIntersection(float distance, simd_float3 normal) {
+    Intersection intersection = { distance, normal };
+    return intersection;
+}
+
+Intersection missedIntersection() {
+    Intersection miss = { NAN, simd_make_float3(NAN) };
+    return miss;
+}
+
+AABB emptyBox() {
+    AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
+    return box;
+}
+
 //float intersectTree(kdNode *tree, int index, int maxIndex, AABB box, Ray ray, int dim) {
 //    // Check base case or complete miss
 //    const float boxIntersection = intersectionBox(box, ray);

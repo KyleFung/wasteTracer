@@ -19,7 +19,7 @@ for x in 0..<res.x {
         let ray = primaryRay(uv, simd_float2(res), eye, lookAt, up)
 
         imagePixels[Int(y * res.x + x)] = Pixel(128)
-        if intersectionModel(model, ray) > 0.0 {
+        if isHit(intersectionModel(model, ray)) {
             imagePixels[Int(y * res.x + x)] = Pixel(255)
         }
     }

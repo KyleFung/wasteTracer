@@ -52,6 +52,8 @@ typedef struct AABB {
     simd_float3 min;
 } AABB;
 
+AABB emptyBox();
+
 typedef struct Transform {
     simd_float3 scale;
     simd_float3x3 rotation;
@@ -70,15 +72,19 @@ typedef struct Model {
     AABB aabb;
 } Model;
 
-AABB emptyBox() {
-    AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
-    return box;
-}
+typedef struct Intersection {
+    float distance; // NaN <=> miss
+    simd_float3 normal;
+} Intersection;
+
+bool isHit(Intersection intersection);
+Intersection makeIntersection(float distance, simd_float3 normal);
+Intersection missedIntersection(void);
 
 // Geometry
 float intersectionBox(AABB b, Ray r);
-float intersectionTriangle(ExplicitTriangle t, Ray r);
-float intersectionModel(Model model, Ray r);
+Intersection intersectionTriangle(ExplicitTriangle t, Ray r);
+Intersection intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);
 
 // Tracing
