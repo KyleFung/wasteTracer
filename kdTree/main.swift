@@ -21,7 +21,7 @@ for x in 0..<res.x {
         imagePixels[Int(y * res.x + x)] = Pixel(0.5)
         let intersection = intersectionModel(model, ray)
         if isHit(intersection) {
-            let lighting = max(0.0, dot(simd_float3(0.0, -1.0, 0.0), intersection.normal))
+            let lighting = max(0.0, dot(simd_float3(0.0, 1.0, 0.0), intersection.normal))
             imagePixels[Int(y * res.x + x)] = Pixel(lighting)
         }
     }
