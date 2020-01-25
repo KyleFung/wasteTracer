@@ -52,7 +52,7 @@ typedef struct AABB {
     simd_float3 min;
 } AABB;
 
-AABB emptyBox();
+AABB emptyBox(void);
 
 typedef struct Transform {
     simd_float3 scale;
