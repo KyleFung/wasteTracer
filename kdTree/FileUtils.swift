@@ -19,6 +19,34 @@ struct Pixel {
         b = repeating
         a = 255
     }
+
+    public init(_ repeating: Float) {
+        r = UInt8(repeating * 255)
+        g = UInt8(repeating * 255)
+        b = UInt8(repeating * 255)
+        a = 255
+    }
+
+    public init(_ r: UInt8, _ g: UInt8, _ b: UInt8) {
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = 255
+    }
+
+    public init(_ r: Float, _ g: Float, _ b: Float) {
+        self.r = UInt8(r * 255)
+        self.g = UInt8(g * 255)
+        self.b = UInt8(b * 255)
+        self.a = 255
+    }
+
+    public init(_ rgb: simd_float3) {
+        self.r = UInt8(rgb.x * 255)
+        self.g = UInt8(rgb.y * 255)
+        self.b = UInt8(rgb.z * 255)
+        self.a = 255
+    }
 }
 
 func imageFromRGBA32Bitmap(pixels: [Pixel], width: Int, height: Int) -> CGImage? {

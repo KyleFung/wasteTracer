@@ -7,7 +7,7 @@ let dest = URL(fileURLWithPath: "/Users/kylefung/blah.png")
 var model = loadModel(file: objFile)
 
 // Ray trace
-let eye = simd_float3(0.0, 0.0, 4.0)
+let eye = simd_float3(0.0, 0.0, 2.0)
 let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
 let res = simd_int2(400, 300)
@@ -18,9 +18,11 @@ for x in 0..<res.x {
         let uv = simd_float2(Float(x),Float(res.y - y)) / simd_float2(Float(res.x), Float(res.y))
         let ray = primaryRay(uv, simd_float2(res), eye, lookAt, up)
 
-        imagePixels[Int(y * res.x + x)] = Pixel(128)
-        if isHit(intersectionModel(model, ray)) {
-            imagePixels[Int(y * res.x + x)] = Pixel(255)
+        imagePixels[Int(y * res.x + x)] = Pixel(0.5)
+        let intersection = intersectionModel(model, ray)
+        if isHit(intersection) {
+            let lighting = max(0.0, dot(simd_float3(0.0, -1.0, 0.0), intersection.normal))
+            imagePixels[Int(y * res.x + x)] = Pixel(lighting)
         }
     }
 }
