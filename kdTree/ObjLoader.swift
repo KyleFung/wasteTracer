@@ -38,13 +38,16 @@ func loadModel(file: String) -> Model {
             aStreamReader.close()
         }
         while let line = aStreamReader.nextLine() {
-            if (line[line.startIndex] == "v") {
+            if line.isEmpty {
+                continue
+            }
+            if line[line.startIndex] == "v" {
                 vertexCount += 1
             }
-            if (line[line.startIndex] == "f") {
+            if line[line.startIndex] == "f" {
                 faceCount += 1
             }
-            if (line.hasPrefix("mtllib")) {
+            if line.hasPrefix("mtllib") {
                 // Load in a material library
                 let fileName = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")[1]
                 loadMaterials(file: dirPath + fileName, materials: &materials, textures: &textures)
@@ -60,12 +63,14 @@ func loadModel(file: String) -> Model {
     var aabbMin = simd_float3(repeating: Float.infinity)
     var aabbMax = simd_float3(repeating: -Float.infinity)
     var centroid = simd_float3(repeating: 0)
+    var vertAttributes: Set<String> = .init()
     if let aStreamReader = StreamReader(path: file) {
         defer {
             aStreamReader.close()
         }
         while let line = aStreamReader.nextLine() {
-            if (line.hasPrefix("v") && !line.hasPrefix("vt")) {
+            if line.hasPrefix("v") && !line.hasPrefix("vt") {
+                vertAttributes.insert("v")
                 let vertex = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
                 let x: Float = Float(vertex[1])!
                 let y: Float = Float(vertex[2])!
@@ -77,6 +82,10 @@ func loadModel(file: String) -> Model {
                 centroid += v
                 vertices[vertexCount].pos = v
                 vertexCount += 1
+            } else if line.hasPrefix("vt") {
+                vertAttributes.insert("vt")
+            } else if line.hasPrefix("vn") {
+                vertAttributes.insert("vn")
             }
         }
         centroid /= Float(vertexCount)
@@ -91,11 +100,14 @@ func loadModel(file: String) -> Model {
         }
         let separation = CharacterSet(charactersIn: " /")
         while let line = aStreamReader.nextLine() {
-            if (line[line.startIndex] == "f") {
+            if line.isEmpty {
+                continue
+            }
+            if line[line.startIndex] == "f" {
                 let indices = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: separation)
-                faces[faceCount] = Triangle(UInt32(indices[1])! - 1,
-                                            UInt32(indices[3])! - 1,
-                                            UInt32(indices[5])! - 1)
+                faces[faceCount] = Triangle(UInt32(indices[0 * vertAttributes.count + 1])! - 1,
+                                            UInt32(indices[1 * vertAttributes.count + 1])! - 1,
+                                            UInt32(indices[2 * vertAttributes.count + 1])! - 1)
                 faceCount += 1
             }
         }
