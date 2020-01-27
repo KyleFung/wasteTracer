@@ -18,11 +18,23 @@ for x in 0..<res.x {
         let uv = simd_float2(Float(x),Float(res.y - y)) / simd_float2(Float(res.x), Float(res.y))
         let ray = primaryRay(uv, simd_float2(res), eye, lookAt, up)
 
+        // Clear color
         imagePixels[Int(y * res.x + x)] = Pixel(0.5)
+
+        // Ray trace
         let intersection = intersectionModel(model, ray)
         if isHit(intersection) {
-            let lighting = max(0.0, dot(simd_float3(0.0, 1.0, 0.0), intersection.normal))
-            imagePixels[Int(y * res.x + x)] = Pixel(lighting)
+            let pointLight = simd_float3(3.0, 3.0, 3.0)
+            let lDir = normalize(pointLight - intersection.pos)
+            let lighting = min(1.0, max(0.0, dot(lDir, intersection.normal)))
+
+            let shadowRay: Ray = .init(pos: intersection.pos + 0.01 * intersection.normal, dir: lDir)
+            let shadowIntersection = intersectionModel(model, shadowRay)
+            if isHit(shadowIntersection) {
+                imagePixels[Int(y * res.x + x)] = Pixel(0.0)
+            } else {
+                imagePixels[Int(y * res.x + x)] = Pixel(lighting)
+            }
         }
     }
 }

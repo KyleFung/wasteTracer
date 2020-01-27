@@ -75,10 +75,11 @@ typedef struct Model {
 typedef struct Intersection {
     float distance; // NaN <=> miss
     simd_float3 normal;
+    simd_float3 pos;
 } Intersection;
 
 bool isHit(Intersection intersection);
-Intersection makeIntersection(float distance, simd_float3 normal);
+Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos);
 Intersection missedIntersection(void);
 
 // Geometry

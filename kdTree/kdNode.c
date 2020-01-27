@@ -77,7 +77,7 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
 
     if (side0 * side1 > 0 && side1 * side2 > 0) {
         // Intersection
-        return makeIntersection(hit, nor);
+        return makeIntersection(hit, hitPos, nor);
     } else {
         // Not inside triangle (miss)
         return missedIntersection();
@@ -114,13 +114,13 @@ bool isHit(Intersection intersection) {
     return !isnan(intersection.distance);
 }
 
-Intersection makeIntersection(float distance, simd_float3 normal) {
-    Intersection intersection = { distance, normal };
+Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
+    Intersection intersection = { distance, normal, pos };
     return intersection;
 }
 
 Intersection missedIntersection() {
-    Intersection miss = { NAN, simd_make_float3(NAN) };
+    Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN) };
     return miss;
 }
 
