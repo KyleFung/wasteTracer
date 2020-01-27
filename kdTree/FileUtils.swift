@@ -54,14 +54,13 @@ func imageFromRGBA32Bitmap(pixels: [Pixel], width: Int, height: Int) -> CGImage?
     guard pixels.count == width * height else { return nil }
 
     let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
-    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
     let bitsPerComponent = 8
     let bitsPerPixel = 32
 
     var data = pixels // Copy to mutable []
     guard let providerRef = CGDataProvider(data: NSData(bytes: &data,
-                                                        length: data.count * MemoryLayout<Pixel>.size)
-        )
+                                                        length: data.count * MemoryLayout<Pixel>.size))
         else { return nil }
 
     guard let cgim = CGImage(
@@ -75,8 +74,7 @@ func imageFromRGBA32Bitmap(pixels: [Pixel], width: Int, height: Int) -> CGImage?
         provider: providerRef,
         decode: nil,
         shouldInterpolate: true,
-        intent: .defaultIntent
-        )
+        intent: .defaultIntent)
         else { return nil }
 
     return cgim

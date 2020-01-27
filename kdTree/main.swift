@@ -19,7 +19,7 @@ for x in 0..<res.x {
         let ray = primaryRay(uv, simd_float2(res), eye, lookAt, up)
 
         // Clear color
-        imagePixels[Int(y * res.x + x)] = Pixel(0.5)
+        imagePixels[Int(y * res.x + x)] = Pixel(0.2, 0.6, 0.9)
 
         // Ray trace
         let intersection = intersectionModel(model, ray)
