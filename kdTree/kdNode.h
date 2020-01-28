@@ -60,6 +60,31 @@ typedef struct Transform {
     simd_float3 translation;
 } Transform;
 
+struct KDNode;
+
+typedef struct KDSplitNode {
+    AABB aabb; // TODO: Might not be necessary
+    float split;
+    struct KDNode *left;
+    struct KDNode *right;
+} KDSplitNode;
+
+typedef struct KDLeafNode {
+    unsigned int staticList[sizeof(KDSplitNode) / sizeof(unsigned int) - 1];
+    unsigned int *dynamicList;
+} KDLeafNode;
+
+typedef struct KDNode {
+    // First 2 bits encode node type (0 = x, 1 = y, 2 = z, 3 = triangle list).
+    // Last 30 bits encode triangle count if triangle list.
+    int type;
+
+    union {
+        KDSplitNode split;
+        KDLeafNode leaf;
+    };
+} kdNode;
+
 typedef struct Model {
     Triangle *faces;
     Vertex *vertices;
