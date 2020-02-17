@@ -1,5 +1,7 @@
 #include "kdNode.h"
 
+#include <stdio.h> // for printf
+
 float max(float a, float b) {return a > b ? a : b;}
 float min(float a, float b) {return a < b ? a : b;}
 
@@ -129,20 +131,143 @@ AABB emptyBox() {
     return box;
 }
 
-//float intersectTree(kdNode *tree, int index, int maxIndex, AABB box, Ray ray, int dim) {
-//    // Check base case or complete miss
-//    const float boxIntersection = intersectionBox(box, ray);
-//    if (boxIntersection == INFINITY)
-//        return boxIntersection;
-//    if (index * 2 >= maxIndex) {
-//        // Do primitive intersection
-//    }
-//
-//    // Recurse
-//    AABB boxL = getLBox(tree[index].median, dim, box);
-//    AABB boxR = getRBox(tree[index].median, dim, box);
-//
-//    float intL = intersectTree(tree, 2 * index, maxIndex, boxL, ray, (dim + 1) % 3);
-//    float intR = intersectTree(tree, 2 * index + 1, maxIndex, boxR, ray, (dim + 1) % 3);
-//    return min(intL, intR);
-//}
+void partitionSerialKDRelative(int splitType,
+                               Triangle *faces, unsigned int faceCount, unsigned int *faceIndices,
+                               Vertex *vertices,
+                               KDNode **nodes, unsigned int *nodeCount) {
+    const int verticesPerFace = 3;
+
+    // Find mean for split
+    float mean = 0.0f;
+    {
+        for (int f = 0; f < faceCount; f++) {
+            Triangle t = faces[f];
+            for (int v = 0; v < verticesPerFace; v++) {
+                mean += vertices[t.v[v]].pos[splitType];
+            }
+        }
+        mean /= (verticesPerFace * faceCount);
+    }
+
+    // Determine memory needed for separate partitions
+    unsigned int leftCount = 0, rightCount = 0;
+    {
+        // Partition the faces
+        for (int f = 0; f < faceCount; f++) {
+            Triangle t = faces[f];
+            bool left = false, right = false;
+            for (int v = 0; v < verticesPerFace; v++) {
+                if (vertices[t.v[v]].pos[splitType] < mean) {
+                    left = true;
+                } else {
+                    right = true;
+                }
+            }
+            if (left) {
+                leftCount++;
+            }
+            if (right) {
+                rightCount++;
+            }
+        }
+    }
+
+    // Cut failed if either lists are the same size as the original
+    if (leftCount == faceCount || rightCount == faceCount) {
+        // Shove all faces into a leaf node
+        KDNode *leafNode = malloc(sizeof(KDNode));
+        leafNode->type = (faceCount << 2) | 3;
+        unsigned int staticFaceCount = 0;
+        for (int f = 0; f < faceCount; f++) {
+            if (f < MAX_STATIC_FACES) {
+                leafNode->leaf.staticList[staticFaceCount] = faceIndices[f];
+                staticFaceCount++;
+            } else {
+                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
+                break;
+            }
+        }
+        *nodes = leafNode;
+        *nodeCount = 1;
+        return;
+    }
+
+    // Allocate memory for partitions
+    Triangle *leftFaces = leftCount ? malloc(sizeof(Triangle) * leftCount) : NULL;
+    unsigned int *leftIndices = leftCount ? malloc(sizeof(unsigned int) * leftCount) : NULL;
+    Triangle *rightFaces = rightCount ? malloc(sizeof(Triangle) * rightCount) : NULL;
+    unsigned int *rightIndices = rightCount ? malloc(sizeof(unsigned int) * rightCount) : NULL;
+
+    // Partition the faces
+    {
+        unsigned int leftCounter = 0;
+        unsigned int rightCounter = 0;
+        for (int f = 0; f < faceCount; f++) {
+            Triangle t = faces[f];
+            bool left = false, right = false;
+            for (int v = 0; v < verticesPerFace; v++) {
+                if (vertices[t.v[v]].pos[splitType] < mean) {
+                    left = true;
+                } else {
+                    right = true;
+                }
+            }
+            if (left) {
+                leftFaces[leftCounter] = t;
+                leftIndices[leftCounter] = faceIndices[f];
+                leftCounter++;
+            }
+            if (right) {
+                rightFaces[rightCounter] = t;
+                rightIndices[rightCounter] = faceIndices[f];
+                rightCounter++;
+            }
+        }
+    }
+
+    // Recurse
+    int newSplit = (splitType + 1) % 3;
+    KDNode *leftResult = NULL, *rightResult = NULL;
+    unsigned int leftNodeCount = -1, rightNodeCount = -1;
+    partitionSerialKDRelative(newSplit, leftFaces, leftCount, leftIndices, vertices, &leftResult, &leftNodeCount);
+    partitionSerialKDRelative(newSplit, rightFaces, rightCount, rightIndices, vertices, &rightResult, &rightNodeCount);
+
+    KDNode splitNode;
+    splitNode.type = splitType;
+    // splitNode.split.aabb = ...
+    splitNode.split.left = 1;
+    splitNode.split.right = 1 + leftNodeCount;
+    splitNode.split.split = mean;
+
+    // Write out result
+    *nodeCount = 1 + leftNodeCount + rightNodeCount;
+    *nodes = malloc(sizeof(KDNode) * *nodeCount);
+    *nodes[0] = splitNode;
+    memcpy((*nodes) + 1, leftResult, sizeof(KDNode) * leftNodeCount);
+    memcpy((*nodes) + 1 + leftNodeCount, rightResult, sizeof(KDNode) * rightNodeCount);
+
+    // Clean up dangling resources
+    free(leftResult);
+    free(rightResult);
+    free(leftFaces);
+    free(rightFaces);
+    free(leftIndices);
+    free(rightIndices);
+}
+
+void partitionSerialKD(Triangle *faces, unsigned int faceCount,
+                       Vertex *vertices, unsigned int vertexCount,
+                       KDNode **nodes, unsigned int *nodeCount) {
+    unsigned int *faceIndices = malloc(sizeof(unsigned int) * faceCount);
+    for (int f = 0; f < faceCount; f++) {
+        faceIndices[f] = f;
+    }
+    partitionSerialKDRelative(0, faces, faceCount, faceIndices, vertices, nodes, nodeCount);
+    free(faceIndices);
+}
+
+void partitionModel(Model *model) {
+    partitionSerialKD(model->faces, model->faceCount,
+                      model->vertices, model->vertCount,
+                      &model->kdNodes, &model->nodeCount);
+}

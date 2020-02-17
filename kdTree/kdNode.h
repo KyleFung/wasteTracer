@@ -65,13 +65,14 @@ struct KDNode;
 typedef struct KDSplitNode {
     AABB aabb; // TODO: Might not be necessary
     float split;
-    struct KDNode *left;
-    struct KDNode *right;
+    unsigned int left;
+    unsigned int right;
 } KDSplitNode;
 
+#define MAX_STATIC_FACES sizeof(KDSplitNode) / sizeof(unsigned int) - 1
 typedef struct KDLeafNode {
-    unsigned int staticList[sizeof(KDSplitNode) / sizeof(unsigned int) - 1];
-    unsigned int *dynamicList;
+    unsigned int staticList[MAX_STATIC_FACES];
+    unsigned int dynamicListStart;
 } KDLeafNode;
 
 typedef struct KDNode {
@@ -83,7 +84,7 @@ typedef struct KDNode {
         KDSplitNode split;
         KDLeafNode leaf;
     };
-} kdNode;
+} KDNode;
 
 typedef struct Model {
     Triangle *faces;
@@ -95,6 +96,8 @@ typedef struct Model {
     Transform transform;
     simd_float3 centroid;
     AABB aabb;
+    KDNode *kdNodes;
+    uint32_t nodeCount;
 } Model;
 
 typedef struct Intersection {
@@ -112,6 +115,9 @@ float intersectionBox(AABB b, Ray r);
 Intersection intersectionTriangle(ExplicitTriangle t, Ray r);
 Intersection intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);
+
+// Partitioning
+void partitionModel(Model *model);
 
 // Tracing
 Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up);
