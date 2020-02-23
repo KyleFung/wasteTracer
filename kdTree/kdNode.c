@@ -131,45 +131,65 @@ AABB emptyBox() {
     return box;
 }
 
-void partitionSerialKDRelative(int splitType,
-                               Triangle *faces, unsigned int faceCount, unsigned int *faceIndices,
+static int leafCount = 0;
+void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned int *faceIndices,
                                Vertex *vertices,
                                KDNode **nodes, unsigned int *nodeCount) {
     const int verticesPerFace = 3;
 
     // Find mean for split
-    float mean = 0.0f;
+    simd_float3 min = simd_make_float3(1000000.0, 1000000.0, 1000000.0);
+    simd_float3 max = -min;
     {
         for (int f = 0; f < faceCount; f++) {
             Triangle t = faces[f];
             for (int v = 0; v < verticesPerFace; v++) {
-                mean += vertices[t.v[v]].pos[splitType];
+                min = simd_min(vertices[t.v[v]].pos, min);
+                max = simd_max(vertices[t.v[v]].pos, max);
             }
         }
-        mean /= (verticesPerFace * faceCount);
     }
+    simd_float3 median = (min + max) * 0.5f;
 
     // Determine memory needed for separate partitions
     unsigned int leftCount = 0, rightCount = 0;
+    unsigned int optimalSplit = -1;
+    float optimalMedian = NAN;
     {
         // Partition the faces
+        simd_int3 lCount = simd_make_int3(0, 0, 0);
+        simd_int3 rCount = simd_make_int3(0, 0, 0);
         for (int f = 0; f < faceCount; f++) {
             Triangle t = faces[f];
-            bool left = false, right = false;
+            simd_char3 left = simd_make_char3(false, false, false);
+            simd_char3 right = simd_make_char3(false, false, false);
             for (int v = 0; v < verticesPerFace; v++) {
-                if (vertices[t.v[v]].pos[splitType] < mean) {
-                    left = true;
-                } else {
-                    right = true;
+                for (int split = 0; split < 3; split++) {
+                    if (vertices[t.v[v]].pos[split] < median[split]) {
+                        left[split] = true;
+                    } else {
+                        right[split] = true;
+                    }
                 }
             }
-            if (left) {
-                leftCount++;
-            }
-            if (right) {
-                rightCount++;
+            for (int split = 0; split < 3; split++) {
+                if (left[split]) {
+                    lCount[split]++;
+                }
+                if (right[split]) {
+                    rCount[split]++;
+                }
             }
         }
+
+        // Analyze split ratios to find optimal split
+        int32_t idealSplit = faceCount / 2;
+        simd_int3 overLap = simd_abs(lCount - idealSplit) + simd_abs(rCount - idealSplit);
+        optimalSplit = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
+                       (overLap.y < overLap.z) ? 1 : 2;
+        optimalMedian = median[optimalSplit];
+        leftCount = lCount[optimalSplit];
+        rightCount = rCount[optimalSplit];
     }
 
     // Cut failed if either lists are the same size as the original
@@ -178,12 +198,14 @@ void partitionSerialKDRelative(int splitType,
         KDNode *leafNode = malloc(sizeof(KDNode));
         leafNode->type = (faceCount << 2) | 3;
         unsigned int staticFaceCount = 0;
+//        printf("Leaf node %d\n", faceCount);
+        leafCount += faceCount;
         for (int f = 0; f < faceCount; f++) {
             if (f < MAX_STATIC_FACES) {
                 leafNode->leaf.staticList[staticFaceCount] = faceIndices[f];
                 staticFaceCount++;
             } else {
-                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
+//                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
                 break;
             }
         }
@@ -206,7 +228,7 @@ void partitionSerialKDRelative(int splitType,
             Triangle t = faces[f];
             bool left = false, right = false;
             for (int v = 0; v < verticesPerFace; v++) {
-                if (vertices[t.v[v]].pos[splitType] < mean) {
+                if (vertices[t.v[v]].pos[optimalSplit] < optimalMedian) {
                     left = true;
                 } else {
                     right = true;
@@ -226,18 +248,17 @@ void partitionSerialKDRelative(int splitType,
     }
 
     // Recurse
-    int newSplit = (splitType + 1) % 3;
     KDNode *leftResult = NULL, *rightResult = NULL;
     unsigned int leftNodeCount = -1, rightNodeCount = -1;
-    partitionSerialKDRelative(newSplit, leftFaces, leftCount, leftIndices, vertices, &leftResult, &leftNodeCount);
-    partitionSerialKDRelative(newSplit, rightFaces, rightCount, rightIndices, vertices, &rightResult, &rightNodeCount);
+    partitionSerialKDRelative(leftFaces, leftCount, leftIndices, vertices, &leftResult, &leftNodeCount);
+    partitionSerialKDRelative(rightFaces, rightCount, rightIndices, vertices, &rightResult, &rightNodeCount);
 
     KDNode splitNode;
-    splitNode.type = splitType;
+    splitNode.type = optimalSplit;
     // splitNode.split.aabb = ...
     splitNode.split.left = 1;
     splitNode.split.right = 1 + leftNodeCount;
-    splitNode.split.split = mean;
+    splitNode.split.split = optimalMedian;
 
     // Write out result
     *nodeCount = 1 + leftNodeCount + rightNodeCount;
@@ -245,6 +266,8 @@ void partitionSerialKDRelative(int splitType,
     *nodes[0] = splitNode;
     memcpy((*nodes) + 1, leftResult, sizeof(KDNode) * leftNodeCount);
     memcpy((*nodes) + 1 + leftNodeCount, rightResult, sizeof(KDNode) * rightNodeCount);
+
+//    printf("Split %d, %d from %d\n", leftCount, rightCount, faceCount);
 
     // Clean up dangling resources
     free(leftResult);
@@ -262,8 +285,12 @@ void partitionSerialKD(Triangle *faces, unsigned int faceCount,
     for (int f = 0; f < faceCount; f++) {
         faceIndices[f] = f;
     }
-    partitionSerialKDRelative(0, faces, faceCount, faceIndices, vertices, nodes, nodeCount);
+    partitionSerialKDRelative(faces, faceCount, faceIndices, vertices, nodes, nodeCount);
     free(faceIndices);
+
+    printf("Brute force structure takes %lu bytes\n", faceCount * sizeof(Triangle));
+    printf("Tree structure takes %lu bytes\n", *nodeCount * sizeof(KDNode));
+    printf("Total leaf polygons %d from %d faces\n", leafCount, faceCount);
 }
 
 void partitionModel(Model *model) {
