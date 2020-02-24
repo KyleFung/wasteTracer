@@ -198,14 +198,13 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
         KDNode *leafNode = malloc(sizeof(KDNode));
         leafNode->type = (faceCount << 2) | 3;
         unsigned int staticFaceCount = 0;
-//        printf("Leaf node %d\n", faceCount);
         leafCount += faceCount;
         for (int f = 0; f < faceCount; f++) {
             if (f < MAX_STATIC_FACES) {
                 leafNode->leaf.staticList[staticFaceCount] = faceIndices[f];
                 staticFaceCount++;
             } else {
-//                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
+                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
                 break;
             }
         }
@@ -266,8 +265,6 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
     *nodes[0] = splitNode;
     memcpy((*nodes) + 1, leftResult, sizeof(KDNode) * leftNodeCount);
     memcpy((*nodes) + 1 + leftNodeCount, rightResult, sizeof(KDNode) * rightNodeCount);
-
-//    printf("Split %d, %d from %d\n", leftCount, rightCount, faceCount);
 
     // Clean up dangling resources
     free(leftResult);
