@@ -138,7 +138,7 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
     const int verticesPerFace = 3;
 
     // Find mean for split
-    simd_float3 min = simd_make_float3(1000000.0, 1000000.0, 1000000.0);
+    simd_float3 min = simd_make_float3(INFINITY, INFINITY, INFINITY);
     simd_float3 max = -min;
     {
         for (int f = 0; f < faceCount; f++) {
