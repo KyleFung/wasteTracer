@@ -7,9 +7,34 @@
 
 #pragma once
 
+#include <assert.h>
 #include <simd/simd.h>
 #include <stdbool.h>
 #include <string.h>
+
+typedef struct ByteArray {
+    const char *typeName;
+    char *data;
+    uint32_t size; // in bytes
+    uint32_t elementSize; // in bytes
+    uint32_t count;
+} ByteArray;
+
+void deinitByteArray(ByteArray *byteArray) {
+    free(byteArray->data);
+    byteArray->size = 0;
+    byteArray->count = 0;
+}
+
+ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigned int elementSize) {
+    ByteArray result;
+    result.typeName = typeName;
+    result.elementSize = elementSize;
+    result.size = elementCount * elementSize;
+    result.data = result.size ? malloc(result.size) : NULL;
+    result.count = elementCount;
+    return result;
+}
 
 typedef struct Triangle {
     uint32_t v[3];
@@ -96,8 +121,7 @@ typedef struct Model {
     Transform transform;
     simd_float3 centroid;
     AABB aabb;
-    KDNode *kdNodes;
-    uint32_t nodeCount;
+    ByteArray kdNodes;
 } Model;
 
 typedef struct Intersection {

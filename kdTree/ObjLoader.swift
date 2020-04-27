@@ -113,9 +113,9 @@ func loadModel(file: String) -> Model {
         }
     }
 
-    var model = Model(faces: UnsafeMutablePointer(mutating: faces),
-                      vertices: UnsafeMutablePointer(mutating: vertices),
-                      materials: UnsafeMutablePointer(mutating: materials),
+    var model = Model(faces: UnsafeMutablePointer<Triangle>(mutating: faces),
+                      vertices: UnsafeMutablePointer<Vertex>(mutating: vertices),
+                      materials: UnsafeMutablePointer<Material>(mutating: materials),
                       faceCount: UInt32(faceCount),
                       vertCount: UInt32(vertexCount),
                       matCount: UInt32(materials.count),
@@ -124,8 +124,7 @@ func loadModel(file: String) -> Model {
                                            translation: simd_float3(repeating: 0.0)),
                       centroid: centroid,
                       aabb: AABB(max: aabbMax, min: aabbMin),
-                      kdNodes: nil,
-                      nodeCount: 0)
+                      kdNodes: ByteArray())
 
     // Create kd tree for this model
     partitionModel(&model)

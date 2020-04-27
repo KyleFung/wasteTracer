@@ -2,6 +2,26 @@
 
 #include <stdio.h> // for printf
 
+Vertex *getVertexFromArray(ByteArray vertices, unsigned int index) {
+    assert(strcmp(vertices.typeName, "Vertex") == 0);
+    return &(((Vertex *)vertices.data)[index]);
+}
+
+Triangle *getFaceFromArray(ByteArray faces, unsigned int index) {
+    assert(strcmp(faces.typeName, "Triangle") == 0);
+    return &(((Triangle *)faces.data)[index]);
+}
+
+unsigned int *getIndexFromArray(ByteArray indices, unsigned int index) {
+    assert(strcmp(indices.typeName, "UnsignedInt") == 0);
+    return &(((unsigned int *)indices.data)[index]);
+}
+
+KDNode *getNodeFromArray(ByteArray nodes, unsigned int index) {
+    assert(strcmp(nodes.typeName, "KDNode") == 0);
+    return &(((KDNode *)nodes.data)[index]);
+}
+
 float max(float a, float b) {return a > b ? a : b;}
 float min(float a, float b) {return a < b ? a : b;}
 
@@ -132,9 +152,11 @@ AABB emptyBox() {
 }
 
 static int leafCount = 0;
-void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned int *faceIndices,
-                               Vertex *vertices,
-                               KDNode **nodes, unsigned int *nodeCount) {
+void partitionSerialKDRelative(const ByteArray faceIndices,
+                               const ByteArray faces,
+                               const ByteArray vertices,
+                               ByteArray *nodes) {
+    const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
 
     // Find mean for split
@@ -142,10 +164,11 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
     simd_float3 max = -min;
     {
         for (int f = 0; f < faceCount; f++) {
-            Triangle t = faces[f];
+            Triangle t = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
             for (int v = 0; v < verticesPerFace; v++) {
-                min = simd_min(vertices[t.v[v]].pos, min);
-                max = simd_max(vertices[t.v[v]].pos, max);
+                const Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
+                min = simd_min(vertex->pos, min);
+                max = simd_max(vertex->pos, max);
             }
         }
     }
@@ -160,12 +183,13 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
         simd_int3 lCount = simd_make_int3(0, 0, 0);
         simd_int3 rCount = simd_make_int3(0, 0, 0);
         for (int f = 0; f < faceCount; f++) {
-            Triangle t = faces[f];
+            Triangle t = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
             simd_char3 left = simd_make_char3(false, false, false);
             simd_char3 right = simd_make_char3(false, false, false);
             for (int v = 0; v < verticesPerFace; v++) {
                 for (int split = 0; split < 3; split++) {
-                    if (vertices[t.v[v]].pos[split] < median[split]) {
+                    Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
+                    if (vertex->pos[split] < median[split]) {
                         left[split] = true;
                     } else {
                         right[split] = true;
@@ -195,103 +219,107 @@ void partitionSerialKDRelative(Triangle *faces, unsigned int faceCount, unsigned
     // Cut failed if either lists are the same size as the original
     if (leftCount == faceCount || rightCount == faceCount) {
         // Shove all faces into a leaf node
-        KDNode *leafNode = malloc(sizeof(KDNode));
-        leafNode->type = (faceCount << 2) | 3;
+        *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
+        KDNode *leaf = getNodeFromArray(*nodes, 0);
+        leaf->type = (faceCount << 2) | 3;
         unsigned int staticFaceCount = 0;
         leafCount += faceCount;
         for (int f = 0; f < faceCount; f++) {
             if (f < MAX_STATIC_FACES) {
-                leafNode->leaf.staticList[staticFaceCount] = faceIndices[f];
+                leaf->leaf.staticList[staticFaceCount] = *getIndexFromArray(faceIndices, f);
                 staticFaceCount++;
             } else {
                 printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
-                break;
             }
         }
-        *nodes = leafNode;
-        *nodeCount = 1;
         return;
     }
 
     // Allocate memory for partitions
-    Triangle *leftFaces = leftCount ? malloc(sizeof(Triangle) * leftCount) : NULL;
-    unsigned int *leftIndices = leftCount ? malloc(sizeof(unsigned int) * leftCount) : NULL;
-    Triangle *rightFaces = rightCount ? malloc(sizeof(Triangle) * rightCount) : NULL;
-    unsigned int *rightIndices = rightCount ? malloc(sizeof(unsigned int) * rightCount) : NULL;
+    ByteArray lIndices = initByteArray("UnsignedInt", leftCount, sizeof(unsigned int));
+    ByteArray rIndices = initByteArray("UnsignedInt", rightCount, sizeof(unsigned int));
 
     // Partition the faces
     {
         unsigned int leftCounter = 0;
         unsigned int rightCounter = 0;
         for (int f = 0; f < faceCount; f++) {
-            Triangle t = faces[f];
+            const unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
+            Triangle t = *getFaceFromArray(faces, faceIndex);
             bool left = false, right = false;
             for (int v = 0; v < verticesPerFace; v++) {
-                if (vertices[t.v[v]].pos[optimalSplit] < optimalMedian) {
+                Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
+                if (vertex->pos[optimalSplit] < median[optimalSplit]) {
                     left = true;
                 } else {
                     right = true;
                 }
             }
             if (left) {
-                leftFaces[leftCounter] = t;
-                leftIndices[leftCounter] = faceIndices[f];
+                *getIndexFromArray(lIndices, leftCounter) = faceIndex;
                 leftCounter++;
             }
             if (right) {
-                rightFaces[rightCounter] = t;
-                rightIndices[rightCounter] = faceIndices[f];
+                *getIndexFromArray(rIndices, rightCounter) = faceIndex;
                 rightCounter++;
             }
         }
+        assert(leftCounter == leftCount);
+        assert(rightCounter == rightCount);
     }
 
     // Recurse
-    KDNode *leftResult = NULL, *rightResult = NULL;
-    unsigned int leftNodeCount = -1, rightNodeCount = -1;
-    partitionSerialKDRelative(leftFaces, leftCount, leftIndices, vertices, &leftResult, &leftNodeCount);
-    partitionSerialKDRelative(rightFaces, rightCount, rightIndices, vertices, &rightResult, &rightNodeCount);
+    ByteArray leftResult = initByteArray("KDNode", 0, sizeof(KDNode));
+    ByteArray rightResult = initByteArray("KDNode", 0, sizeof(KDNode));
+    partitionSerialKDRelative(lIndices, faces, vertices, &leftResult);
+    partitionSerialKDRelative(rIndices, faces, vertices, &rightResult);
 
     KDNode splitNode;
     splitNode.type = optimalSplit;
     // splitNode.split.aabb = ...
     splitNode.split.left = 1;
-    splitNode.split.right = 1 + leftNodeCount;
+    splitNode.split.right = 1 + leftResult.count;
     splitNode.split.split = optimalMedian;
 
     // Write out result
-    *nodeCount = 1 + leftNodeCount + rightNodeCount;
-    *nodes = malloc(sizeof(KDNode) * *nodeCount);
-    *nodes[0] = splitNode;
-    memcpy((*nodes) + 1, leftResult, sizeof(KDNode) * leftNodeCount);
-    memcpy((*nodes) + 1 + leftNodeCount, rightResult, sizeof(KDNode) * rightNodeCount);
+    unsigned int nodeCount = 1 + leftResult.count + rightResult.count;
+    *nodes = initByteArray("KDNode", nodeCount, sizeof(KDNode));
+    *getNodeFromArray(*nodes, 0) = splitNode;
+    memcpy(((KDNode *)nodes->data) + 1, leftResult.data, sizeof(KDNode) * leftResult.count);
+    memcpy(((KDNode *)nodes->data) + 1 + leftResult.count, rightResult.data, sizeof(KDNode) * rightResult.count);
 
     // Clean up dangling resources
-    free(leftResult);
-    free(rightResult);
-    free(leftFaces);
-    free(rightFaces);
-    free(leftIndices);
-    free(rightIndices);
+    deinitByteArray(&lIndices);
+    deinitByteArray(&rIndices);
+    deinitByteArray(&leftResult);
+    deinitByteArray(&rightResult);
 }
 
-void partitionSerialKD(Triangle *faces, unsigned int faceCount,
-                       Vertex *vertices, unsigned int vertexCount,
-                       KDNode **nodes, unsigned int *nodeCount) {
-    unsigned int *faceIndices = malloc(sizeof(unsigned int) * faceCount);
+void partitionSerialKD(const ByteArray faces,
+                       const ByteArray vertices,
+                       ByteArray *nodes) {
+    const unsigned int faceCount = faces.size / faces.elementSize;
+    ByteArray faceIndices = initByteArray("UnsignedInt", faceCount, sizeof(unsigned int));
     for (int f = 0; f < faceCount; f++) {
-        faceIndices[f] = f;
+        ((unsigned int *)faceIndices.data)[f] = f;
     }
-    partitionSerialKDRelative(faces, faceCount, faceIndices, vertices, nodes, nodeCount);
-    free(faceIndices);
+    partitionSerialKDRelative(faceIndices, faces, vertices, nodes);
+    deinitByteArray(&faceIndices);
 
-    printf("Brute force structure takes %lu bytes\n", faceCount * sizeof(Triangle));
-    printf("Tree structure takes %lu bytes\n", *nodeCount * sizeof(KDNode));
+    printf("Brute force index structure takes %u bytes\n", faceIndices.size);
+    printf("Tree structure takes %u bytes\n", nodes->size);
     printf("Total leaf polygons %d from %d faces\n", leafCount, faceCount);
 }
 
 void partitionModel(Model *model) {
-    partitionSerialKD(model->faces, model->faceCount,
-                      model->vertices, model->vertCount,
-                      &model->kdNodes, &model->nodeCount);
+    ByteArray faces = initByteArray("Triangle", 0, sizeof(Triangle));
+    faces.count = model->faceCount;
+    faces.size = faces.count * faces.elementSize;
+    faces.data = (void *) model->faces;
+
+    ByteArray vertices = initByteArray("Vertex", 0, sizeof(Vertex));
+    vertices.count = model->vertCount;
+    vertices.size = vertices.count * vertices.elementSize;
+    vertices.data = (void *) model->vertices;
+    partitionSerialKD(faces, vertices, &model->kdNodes);
 }
