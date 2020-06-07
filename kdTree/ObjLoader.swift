@@ -124,7 +124,8 @@ func loadModel(file: String) -> Model {
                                            translation: simd_float3(repeating: 0.0)),
                       centroid: centroid,
                       aabb: AABB(max: aabbMax, min: aabbMin),
-                      kdNodes: ByteArray())
+                      kdNodes: ByteArray(),
+                      kdLeaves: ByteArray())
 
     // Create kd tree for this model
     partitionModel(&model)

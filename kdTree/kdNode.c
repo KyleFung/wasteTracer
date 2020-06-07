@@ -155,7 +155,8 @@ static int leafCount = 0;
 void partitionSerialKDRelative(const ByteArray faceIndices,
                                const ByteArray faces,
                                const ByteArray vertices,
-                               ByteArray *nodes) {
+                               ByteArray *nodes,
+                               ByteArray *leaves) {
     const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
 
@@ -222,15 +223,21 @@ void partitionSerialKDRelative(const ByteArray faceIndices,
         *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
         KDNode *leaf = getNodeFromArray(*nodes, 0);
         leaf->type = (faceCount << 2) | 3;
-        unsigned int staticFaceCount = 0;
+        leaf->leaf.dynamicListStart = leaves->count;
+        int staticFaceCount = fmin(faceCount, MAX_STATIC_FACES);
+        int dynamicFaceCount = fmax(0, faceCount - staticFaceCount);
+        assert(staticFaceCount + dynamicFaceCount == faceCount);
+        if (dynamicFaceCount > 0) {
+            resizeByteArray(leaves, leaves->count + dynamicFaceCount);
+        }
         leafCount += faceCount;
-        for (int f = 0; f < faceCount; f++) {
-            if (f < MAX_STATIC_FACES) {
-                leaf->leaf.staticList[staticFaceCount] = *getIndexFromArray(faceIndices, f);
-                staticFaceCount++;
-            } else {
-                printf("Warning: Maximum static face count exceeded: %d\n", faceCount);
-            }
+
+        for (int f = 0; f < staticFaceCount; f++) {
+            leaf->leaf.staticList[f] = *getIndexFromArray(faceIndices, f);
+        }
+        unsigned int *dynamicFaces = ((unsigned int *)leaves->data) + leaf->leaf.dynamicListStart;
+        for (int f = staticFaceCount; f < faceCount; f++) {
+            dynamicFaces[f - MAX_STATIC_FACES] = *getIndexFromArray(faceIndices, f);
         }
         return;
     }
@@ -271,8 +278,8 @@ void partitionSerialKDRelative(const ByteArray faceIndices,
     // Recurse
     ByteArray leftResult = initByteArray("KDNode", 0, sizeof(KDNode));
     ByteArray rightResult = initByteArray("KDNode", 0, sizeof(KDNode));
-    partitionSerialKDRelative(lIndices, faces, vertices, &leftResult);
-    partitionSerialKDRelative(rIndices, faces, vertices, &rightResult);
+    partitionSerialKDRelative(lIndices, faces, vertices, &leftResult, leaves);
+    partitionSerialKDRelative(rIndices, faces, vertices, &rightResult, leaves);
 
     KDNode splitNode;
     splitNode.type = optimalSplit;
@@ -297,13 +304,14 @@ void partitionSerialKDRelative(const ByteArray faceIndices,
 
 void partitionSerialKD(const ByteArray faces,
                        const ByteArray vertices,
-                       ByteArray *nodes) {
+                       ByteArray *nodes,
+                       ByteArray *leaves) {
     const unsigned int faceCount = faces.size / faces.elementSize;
     ByteArray faceIndices = initByteArray("UnsignedInt", faceCount, sizeof(unsigned int));
     for (int f = 0; f < faceCount; f++) {
         ((unsigned int *)faceIndices.data)[f] = f;
     }
-    partitionSerialKDRelative(faceIndices, faces, vertices, nodes);
+    partitionSerialKDRelative(faceIndices, faces, vertices, nodes, leaves);
     deinitByteArray(&faceIndices);
 
     printf("Brute force index structure takes %u bytes\n", faceIndices.size);
@@ -321,5 +329,9 @@ void partitionModel(Model *model) {
     vertices.count = model->vertCount;
     vertices.size = vertices.count * vertices.elementSize;
     vertices.data = (void *) model->vertices;
-    partitionSerialKD(faces, vertices, &model->kdNodes);
+
+    model->kdNodes = initByteArray("KDNode", 0, sizeof(KDNode));
+    model->kdLeaves = initByteArray("UnsignedInt", 0, sizeof(unsigned int));
+
+    partitionSerialKD(faces, vertices, &model->kdNodes, &model->kdLeaves);
 }

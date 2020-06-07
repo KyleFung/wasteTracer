@@ -36,6 +36,21 @@ ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigne
     return result;
 }
 
+void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
+    if (newCount == 0) {
+        deinitByteArray(byteArray);
+        return;
+    }
+
+    unsigned int newSize = newCount * byteArray->elementSize;
+    void *newData = malloc(newSize);
+    memcpy(newData, byteArray->data, fmin(newSize, byteArray->size));
+    free(byteArray->data);
+    byteArray->data = newData;
+    byteArray->size = newSize;
+    byteArray->count = newCount;
+}
+
 typedef struct Triangle {
     uint32_t v[3];
 } Triangle;
@@ -122,6 +137,7 @@ typedef struct Model {
     simd_float3 centroid;
     AABB aabb;
     ByteArray kdNodes;
+    ByteArray kdLeaves;
 } Model;
 
 typedef struct Intersection {
