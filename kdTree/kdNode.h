@@ -103,7 +103,7 @@ typedef struct Transform {
 struct KDNode;
 
 typedef struct KDSplitNode {
-    AABB aabb; // TODO: Might not be necessary
+    AABB aabb;
     float split;
     unsigned int left;
     unsigned int right;
