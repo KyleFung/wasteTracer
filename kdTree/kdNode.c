@@ -329,6 +329,16 @@ void partitionSerialKD(const AABB aabb,
     partitionSerialKDRelative(aabb, faceIndices, faces, vertices, nodes, leaves);
     deinitByteArray(&faceIndices);
 
+    // Convert relative indexing into absolute indexing
+    for (int i = 0; i < nodes->count; i++) {
+        KDNode *node = getNodeFromArray(*nodes, i);
+        // If a node is of type split, its indices are all shifted forward.
+        if (node->type <= 2) {
+            node->split.left += i;
+            node->split.right += i;
+        }
+    }
+
     printf("Brute force index structure takes %u bytes\n", faceIndices.size);
     printf("Tree structure takes %u bytes\n", nodes->size);
     printf("Total leaf polygons %d from %d faces\n", leafCount, faceCount);
