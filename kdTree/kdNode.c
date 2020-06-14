@@ -171,19 +171,19 @@ void partitionSerialKDRelative(const AABB aabb,
     const int verticesPerFace = 3;
 
     // Find mean for split
-    simd_float3 min = simd_make_float3(INFINITY, INFINITY, INFINITY);
-    simd_float3 max = -min;
+    simd_float3 vertexMin = simd_make_float3(INFINITY, INFINITY, INFINITY);
+    simd_float3 vertexMax = -vertexMin;
     {
         for (int f = 0; f < faceCount; f++) {
             Triangle t = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
             for (int v = 0; v < verticesPerFace; v++) {
                 const Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                min = simd_min(vertex->pos, min);
-                max = simd_max(vertex->pos, max);
+                vertexMin = simd_min(vertex->pos, vertexMin);
+                vertexMax = simd_max(vertex->pos, vertexMax);
             }
         }
     }
-    simd_float3 median = (min + max) * 0.5f;
+    simd_float3 median = (vertexMin + vertexMax) * 0.5f;
 
     // Determine memory needed for separate partitions
     unsigned int leftCount = 0, rightCount = 0;
@@ -234,8 +234,8 @@ void partitionSerialKDRelative(const AABB aabb,
         KDNode *leaf = getNodeFromArray(*nodes, 0);
         leaf->type = (faceCount << 2) | 3;
         leaf->leaf.dynamicListStart = leaves->count;
-        int staticFaceCount = fmin(faceCount, MAX_STATIC_FACES);
-        int dynamicFaceCount = fmax(0, faceCount - staticFaceCount);
+        int staticFaceCount = min(faceCount, MAX_STATIC_FACES);
+        int dynamicFaceCount = max(0, faceCount - staticFaceCount);
         assert(staticFaceCount + dynamicFaceCount == faceCount);
         if (dynamicFaceCount > 0) {
             resizeByteArray(leaves, leaves->count + dynamicFaceCount);
