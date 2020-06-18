@@ -20,37 +20,6 @@ typedef struct ByteArray {
     uint32_t count;
 } ByteArray;
 
-void deinitByteArray(ByteArray *byteArray) {
-    free(byteArray->data);
-    byteArray->size = 0;
-    byteArray->count = 0;
-}
-
-ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigned int elementSize) {
-    ByteArray result;
-    result.typeName = typeName;
-    result.elementSize = elementSize;
-    result.size = elementCount * elementSize;
-    result.data = result.size ? malloc(result.size) : NULL;
-    result.count = elementCount;
-    return result;
-}
-
-void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
-    if (newCount == 0) {
-        deinitByteArray(byteArray);
-        return;
-    }
-
-    unsigned int newSize = newCount * byteArray->elementSize;
-    void *newData = malloc(newSize);
-    memcpy(newData, byteArray->data, fmin(newSize, byteArray->size));
-    free(byteArray->data);
-    byteArray->data = newData;
-    byteArray->size = newSize;
-    byteArray->count = newCount;
-}
-
 typedef struct Triangle {
     uint32_t v[3];
 } Triangle;
@@ -91,8 +60,6 @@ typedef struct AABB {
     simd_float3 max;
     simd_float3 min;
 } AABB;
-
-AABB emptyBox(void);
 
 typedef struct Transform {
     simd_float3 scale;
@@ -146,19 +113,16 @@ typedef struct Intersection {
     simd_float3 pos;
 } Intersection;
 
+// Memory management
+void deinitByteArray(ByteArray *byteArray);
+ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigned int elementSize);
+void resizeByteArray(ByteArray *byteArray, unsigned int newCount);
+
+// Intersection
 bool isHit(Intersection intersection);
 Intersection closestIntersection(Intersection a, Intersection b);
-Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos);
 Intersection missedIntersection(void);
-
-// Geometry
-float intersectionBox(AABB b, Ray r);
-Intersection intersectionTriangle(ExplicitTriangle t, Ray r);
-Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
-                              const Triangle *faces, const Vertex *vertices,
-                              Ray r);
 Intersection intersectionModel(Model model, Ray r);
-simd_float3 normalOf(ExplicitTriangle t);
 
 // Partitioning
 void partitionModel(Model *model);

@@ -2,6 +2,11 @@
 
 #include <stdio.h> // for printf
 
+float max(float a, float b) {return a > b ? a : b;}
+float min(float a, float b) {return a < b ? a : b;}
+
+// ByteArray: helpers
+
 Vertex *getVertexFromArray(ByteArray vertices, unsigned int index) {
     assert(strcmp(vertices.typeName, "Vertex") == 0);
     return &(((Vertex *)vertices.data)[index]);
@@ -22,8 +27,40 @@ KDNode *getNodeFromArray(ByteArray nodes, unsigned int index) {
     return &(((KDNode *)nodes.data)[index]);
 }
 
-float max(float a, float b) {return a > b ? a : b;}
-float min(float a, float b) {return a < b ? a : b;}
+// ByteArray: external
+
+void deinitByteArray(ByteArray *byteArray) {
+    free(byteArray->data);
+    byteArray->size = 0;
+    byteArray->count = 0;
+}
+
+ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigned int elementSize) {
+    ByteArray result;
+    result.typeName = typeName;
+    result.elementSize = elementSize;
+    result.size = elementCount * elementSize;
+    result.data = result.size ? malloc(result.size) : NULL;
+    result.count = elementCount;
+    return result;
+}
+
+void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
+    if (newCount == 0) {
+        deinitByteArray(byteArray);
+        return;
+    }
+
+    unsigned int newSize = newCount * byteArray->elementSize;
+    void *newData = malloc(newSize);
+    memcpy(newData, byteArray->data, fmin(newSize, byteArray->size));
+    free(byteArray->data);
+    byteArray->data = newData;
+    byteArray->size = newSize;
+    byteArray->count = newCount;
+}
+
+// Intersection: helpers
 
 float intersectionBox(AABB b, Ray r) {
     double tmin = -INFINITY, tmax = INFINITY;
@@ -51,18 +88,13 @@ bool intersectsBox(AABB b, Ray r) {
     return isfinite(intersection) && intersection > 0.0;
 }
 
-Intersection intersectionModel(Model model, Ray r) {
-    // Perform model transform on the model (by inverting the transform on the ray)
-    r.pos -= model.transform.translation;
-    r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
-    r.pos /= model.transform.scale;
-    r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
+Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
+    Intersection intersection = { distance, normal, pos };
+    return intersection;
+}
 
-    // Transform ray such that the centroid of the model is at the origin
-    r.pos += model.centroid;
-
-    return intersectionTree((KDNode *)model.kdNodes.data, (unsigned int *)model.kdLeaves.data,
-                            model.faces, model.vertices, r);
+simd_float3 normalOf(ExplicitTriangle t) {
+    return simd_normalize(simd_cross(t.v1 - t.v0, t.v2 - t.v0));
 }
 
 Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
@@ -94,8 +126,7 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
 }
 
 Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
-                              const Triangle *faces, const Vertex *vertices,
-                              Ray r) {
+                              const Triangle *faces, const Vertex *vertices, Ray r) {
     const KDNode root = nodes[0];
     // Split node
     if (root.type <= 2) {
@@ -144,31 +175,7 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
     }
 }
 
-Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
-    const float focal = 1.0f;
-    const float ar = res.x / res.y;
-    const float screenHeight = 2.0f;
-    const float screenWidth = ar * screenHeight;
-
-    simd_float3 right = simd_cross(lookAt, up);
-
-    float screenX = (2.0f * uv.x) - 1.0f;
-    float screenY = (2.0f * uv.y) - 1.0f;
-
-    simd_float3 u = screenX * simd_normalize(right) * screenWidth * 0.5f;
-    simd_float3 v = screenY * simd_normalize(up) * screenHeight * 0.5f;
-    simd_float3 dir = simd_normalize(focal * simd_normalize(lookAt) + u + v);
-
-    Ray ray;
-    ray.dir = dir;
-    ray.pos = eye;
-    return ray;
-}
-
-// Struct helpers
-simd_float3 normalOf(ExplicitTriangle t) {
-    return simd_normalize(simd_cross(t.v1 - t.v0, t.v2 - t.v0));
-}
+// Intersection: external
 
 bool isHit(Intersection intersection) {
     return !isnan(intersection.distance);
@@ -185,15 +192,26 @@ Intersection closestIntersection(Intersection a, Intersection b) {
     }
 }
 
-Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
-    Intersection intersection = { distance, normal, pos };
-    return intersection;
-}
-
 Intersection missedIntersection() {
     Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN) };
     return miss;
 }
+
+Intersection intersectionModel(Model model, Ray r) {
+    // Perform model transform on the model (by inverting the transform on the ray)
+    r.pos -= model.transform.translation;
+    r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
+    r.pos /= model.transform.scale;
+    r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
+
+    // Transform ray such that the centroid of the model is at the origin
+    r.pos += model.centroid;
+
+    return intersectionTree((KDNode *)model.kdNodes.data, (unsigned int *)model.kdLeaves.data,
+                            model.faces, model.vertices, r);
+}
+
+// Partitioning: helpers
 
 AABB emptyBox() {
     AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
@@ -383,6 +401,8 @@ void partitionSerialKDRoot(const AABB aabb,
     printf("Total leaf polygons %d from %d faces\n", leafCount, faceCount);
 }
 
+// Partitioning: external
+
 void partitionModel(Model *model) {
     ByteArray faces = initByteArray("Triangle", 0, sizeof(Triangle));
     faces.count = model->faceCount;
@@ -399,4 +419,27 @@ void partitionModel(Model *model) {
     model->kdLeaves = initByteArray("UnsignedInt", 0, sizeof(unsigned int));
 
     partitionSerialKDRoot(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
+}
+
+// Tracing: external
+
+Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    const float focal = 1.0f;
+    const float ar = res.x / res.y;
+    const float screenHeight = 2.0f;
+    const float screenWidth = ar * screenHeight;
+
+    simd_float3 right = simd_cross(lookAt, up);
+
+    float screenX = (2.0f * uv.x) - 1.0f;
+    float screenY = (2.0f * uv.y) - 1.0f;
+
+    simd_float3 u = screenX * simd_normalize(right) * screenWidth * 0.5f;
+    simd_float3 v = screenY * simd_normalize(up) * screenHeight * 0.5f;
+    simd_float3 dir = simd_normalize(focal * simd_normalize(lookAt) + u + v);
+
+    Ray ray;
+    ray.dir = dir;
+    ray.pos = eye;
+    return ray;
 }
