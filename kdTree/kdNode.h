@@ -7,10 +7,8 @@
 
 #pragma once
 
-#include <assert.h>
 #include <simd/simd.h>
 #include <stdbool.h>
-#include <string.h>
 
 typedef struct ByteArray {
     const char *typeName;

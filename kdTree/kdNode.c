@@ -1,6 +1,8 @@
 #include "kdNode.h"
 
+#include <assert.h>
 #include <stdio.h> // for printf
+#include <string.h>
 
 float max(float a, float b) {return a > b ? a : b;}
 float min(float a, float b) {return a < b ? a : b;}
@@ -154,7 +156,6 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
             t.v2 = vertices[triangle.v[2]].pos;
 
             Intersection triIntersect = intersectionTriangle(t, r);
-            assert(!isHit(triIntersect) || fabsf(simd_length(triIntersect.normal) - 1.0f) < 0.1);
             intersection = closestIntersection(intersection, triIntersect);
         }
 
@@ -168,7 +169,6 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
             t.v2 = vertices[triangle.v[2]].pos;
 
             Intersection triIntersect = intersectionTriangle(t, r);
-            assert(!isHit(triIntersect) || fabsf(simd_length(triIntersect.normal) - 1.0f) < 0.1);
             intersection = closestIntersection(intersection, triIntersect);
         }
         return intersection;
