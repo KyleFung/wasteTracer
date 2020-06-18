@@ -46,9 +46,12 @@ float intersectionBox(AABB b, Ray r) {
     return INFINITY;
 }
 
-Intersection intersectionModel(Model model, Ray r) {
-    Intersection result = missedIntersection();
+bool intersectsBox(AABB b, Ray r) {
+    float intersection = intersectionBox(b, r);
+    return isfinite(intersection) && intersection > 0.0;
+}
 
+Intersection intersectionModel(Model model, Ray r) {
     // Perform model transform on the model (by inverting the transform on the ray)
     r.pos -= model.transform.translation;
     r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
@@ -58,24 +61,8 @@ Intersection intersectionModel(Model model, Ray r) {
     // Transform ray such that the centroid of the model is at the origin
     r.pos += model.centroid;
 
-    // Try the bounding box first
-    float boxIntersection = intersectionBox(model.aabb, r);
-    if (!isfinite(boxIntersection) || boxIntersection <= 0.0) {
-        return result;
-    }
-    for (int f = 0; f < model.faceCount; f++) {
-        Triangle triangle = model.faces[f];
-        ExplicitTriangle t;
-        t.v0 = model.vertices[triangle.v[0]].pos;
-        t.v1 = model.vertices[triangle.v[1]].pos;
-        t.v2 = model.vertices[triangle.v[2]].pos;
-
-        Intersection intersection = intersectionTriangle(t, r);
-        if (isHit(intersection) && (intersection.distance < result.distance || !isHit(result))) {
-            result = intersection;
-        }
-    }
-    return result;
+    return intersectionTree((KDNode *)model.kdNodes.data, (unsigned int *)model.kdLeaves.data,
+                            model.faces, model.vertices, r);
 }
 
 Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
@@ -99,10 +86,61 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
 
     if (side0 * side1 > 0 && side1 * side2 > 0) {
         // Intersection
-        return makeIntersection(hit, hitPos, nor);
+        return makeIntersection(hit, nor, hitPos);
     } else {
         // Not inside triangle (miss)
         return missedIntersection();
+    }
+}
+
+Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
+                              const Triangle *faces, const Vertex *vertices,
+                              Ray r) {
+    const KDNode root = nodes[0];
+    // Split node
+    if (root.type <= 2) {
+        const KDSplitNode split = root.split;
+        if (!intersectsBox(split.aabb, r)) {
+            return missedIntersection();
+        }
+
+        Intersection lIntersection = intersectionTree(nodes + split.left,  leaves, faces, vertices, r);
+        Intersection rIntersection = intersectionTree(nodes + split.right, leaves, faces, vertices, r);
+        return closestIntersection(lIntersection, rIntersection);
+    } else {
+        const KDLeafNode leaf = root.leaf;
+        const unsigned int leafCount = root.type >> 2;
+
+        Intersection intersection = missedIntersection();
+
+        const unsigned int staticLeafCount = min(leafCount, MAX_STATIC_FACES);
+        for (int i = 0; i < staticLeafCount; i++) {
+            const unsigned int faceIndex = leaf.staticList[i];
+            const Triangle triangle = faces[faceIndex];
+            ExplicitTriangle t;
+            t.v0 = vertices[triangle.v[0]].pos;
+            t.v1 = vertices[triangle.v[1]].pos;
+            t.v2 = vertices[triangle.v[2]].pos;
+
+            Intersection triIntersect = intersectionTriangle(t, r);
+            assert(!isHit(triIntersect) || fabsf(simd_length(triIntersect.normal) - 1.0f) < 0.1);
+            intersection = closestIntersection(intersection, triIntersect);
+        }
+
+        const unsigned int dynamicLeafCount = max(0, leafCount - staticLeafCount);
+        for (int i = 0; i < dynamicLeafCount; i++) {
+            const unsigned int faceIndex = leaves[leaf.dynamicListStart + i];
+            const Triangle triangle = faces[faceIndex];
+            ExplicitTriangle t;
+            t.v0 = vertices[triangle.v[0]].pos;
+            t.v1 = vertices[triangle.v[1]].pos;
+            t.v2 = vertices[triangle.v[2]].pos;
+
+            Intersection triIntersect = intersectionTriangle(t, r);
+            assert(!isHit(triIntersect) || fabsf(simd_length(triIntersect.normal) - 1.0f) < 0.1);
+            intersection = closestIntersection(intersection, triIntersect);
+        }
+        return intersection;
     }
 }
 
@@ -134,6 +172,17 @@ simd_float3 normalOf(ExplicitTriangle t) {
 
 bool isHit(Intersection intersection) {
     return !isnan(intersection.distance);
+}
+
+Intersection closestIntersection(Intersection a, Intersection b) {
+    if (!isHit(a) && !isHit(b)) {
+        return missedIntersection();
+    }
+    else if (isHit(a) && (!isHit(b) || a.distance < b.distance)) {
+        return a;
+    } else {
+        return b;
+    }
 }
 
 Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
@@ -330,14 +379,14 @@ void partitionSerialKD(const AABB aabb,
     deinitByteArray(&faceIndices);
 
     // Convert relative indexing into absolute indexing
-    for (int i = 0; i < nodes->count; i++) {
-        KDNode *node = getNodeFromArray(*nodes, i);
-        // If a node is of type split, its indices are all shifted forward.
-        if (node->type <= 2) {
-            node->split.left += i;
-            node->split.right += i;
-        }
-    }
+//    for (int i = 0; i < nodes->count; i++) {
+//        KDNode *node = getNodeFromArray(*nodes, i);
+//        // If a node is of type split, its indices are all shifted forward.
+//        if (node->type <= 2) {
+//            node->split.left += i;
+//            node->split.right += i;
+//        }
+//    }
 
     printf("Brute force index structure takes %u bytes\n", faceIndices.size);
     printf("Tree structure takes %u bytes\n", nodes->size);

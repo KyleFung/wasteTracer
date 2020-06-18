@@ -147,12 +147,16 @@ typedef struct Intersection {
 } Intersection;
 
 bool isHit(Intersection intersection);
+Intersection closestIntersection(Intersection a, Intersection b);
 Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos);
 Intersection missedIntersection(void);
 
 // Geometry
 float intersectionBox(AABB b, Ray r);
 Intersection intersectionTriangle(ExplicitTriangle t, Ray r);
+Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
+                              const Triangle *faces, const Vertex *vertices,
+                              Ray r);
 Intersection intersectionModel(Model model, Ray r);
 simd_float3 normalOf(ExplicitTriangle t);
 
