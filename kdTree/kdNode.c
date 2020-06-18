@@ -55,7 +55,7 @@ void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
 
     unsigned int newSize = newCount * byteArray->elementSize;
     void *newData = malloc(newSize);
-    memcpy(newData, byteArray->data, fmin(newSize, byteArray->size));
+    memcpy(newData, byteArray->data, min(newSize, byteArray->size));
     free(byteArray->data);
     byteArray->data = newData;
     byteArray->size = newSize;
