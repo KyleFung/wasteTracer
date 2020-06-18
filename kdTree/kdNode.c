@@ -210,12 +210,12 @@ void splitAABB(const AABB aabb, const short splitAxis, const float splitPos,
 }
 
 static int leafCount = 0;
-void partitionSerialKDRelative(const AABB aabb,
-                               const ByteArray faceIndices,
-                               const ByteArray faces,
-                               const ByteArray vertices,
-                               ByteArray *nodes,
-                               ByteArray *leaves) {
+void partitionSerialKD(const AABB aabb,
+                       const ByteArray faceIndices,
+                       const ByteArray faces,
+                       const ByteArray vertices,
+                       ByteArray *nodes,
+                       ByteArray *leaves) {
     const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
 
@@ -341,8 +341,8 @@ void partitionSerialKDRelative(const AABB aabb,
     // Recurse
     ByteArray leftResult = initByteArray("KDNode", 0, sizeof(KDNode));
     ByteArray rightResult = initByteArray("KDNode", 0, sizeof(KDNode));
-    partitionSerialKDRelative(leftBox,  lIndices, faces, vertices, &leftResult, leaves);
-    partitionSerialKDRelative(rightBox, rIndices, faces, vertices, &rightResult, leaves);
+    partitionSerialKD(leftBox,  lIndices, faces, vertices, &leftResult, leaves);
+    partitionSerialKD(rightBox, rIndices, faces, vertices, &rightResult, leaves);
 
     KDNode splitNode;
     splitNode.type = optimalSplit;
@@ -365,28 +365,18 @@ void partitionSerialKDRelative(const AABB aabb,
     deinitByteArray(&rightResult);
 }
 
-void partitionSerialKD(const AABB aabb,
-                       const ByteArray faces,
-                       const ByteArray vertices,
-                       ByteArray *nodes,
-                       ByteArray *leaves) {
+void partitionSerialKDRoot(const AABB aabb,
+                           const ByteArray faces,
+                           const ByteArray vertices,
+                           ByteArray *nodes,
+                           ByteArray *leaves) {
     const unsigned int faceCount = faces.size / faces.elementSize;
     ByteArray faceIndices = initByteArray("UnsignedInt", faceCount, sizeof(unsigned int));
     for (int f = 0; f < faceCount; f++) {
         ((unsigned int *)faceIndices.data)[f] = f;
     }
-    partitionSerialKDRelative(aabb, faceIndices, faces, vertices, nodes, leaves);
+    partitionSerialKD(aabb, faceIndices, faces, vertices, nodes, leaves);
     deinitByteArray(&faceIndices);
-
-    // Convert relative indexing into absolute indexing
-//    for (int i = 0; i < nodes->count; i++) {
-//        KDNode *node = getNodeFromArray(*nodes, i);
-//        // If a node is of type split, its indices are all shifted forward.
-//        if (node->type <= 2) {
-//            node->split.left += i;
-//            node->split.right += i;
-//        }
-//    }
 
     printf("Brute force index structure takes %u bytes\n", faceIndices.size);
     printf("Tree structure takes %u bytes\n", nodes->size);
@@ -408,5 +398,5 @@ void partitionModel(Model *model) {
     model->kdNodes = initByteArray("KDNode", 0, sizeof(KDNode));
     model->kdLeaves = initByteArray("UnsignedInt", 0, sizeof(unsigned int));
 
-    partitionSerialKD(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
+    partitionSerialKDRoot(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
 }
