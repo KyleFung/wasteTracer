@@ -313,8 +313,10 @@ void partitionSerialKD(const AABB aabb,
             leaf->leaf.staticList[f] = *getIndexFromArray(faceIndices, f);
         }
         unsigned int *dynamicFaces = ((unsigned int *)leaves->data) + leaf->leaf.dynamicListStart;
-        for (int f = staticFaceCount; f < faceCount; f++) {
-            dynamicFaces[f - MAX_STATIC_FACES] = *getIndexFromArray(faceIndices, f);
+        for (unsigned int f = staticFaceCount; f < faceCount; f++) {
+            unsigned int index = f - 11;
+            static_assert(MAX_STATIC_FACES == 11, "Offset is invalid");
+            dynamicFaces[index] = *getIndexFromArray(faceIndices, f);
         }
         return;
     }
