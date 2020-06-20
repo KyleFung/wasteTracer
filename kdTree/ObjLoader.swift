@@ -113,9 +113,18 @@ func loadModel(file: String) -> Model {
         }
     }
 
-    var model = Model(faces: UnsafeMutablePointer<Triangle>(mutating: faces),
-                      vertices: UnsafeMutablePointer<Vertex>(mutating: vertices),
-                      materials: UnsafeMutablePointer<Material>(mutating: materials),
+    let cFaces = UnsafeMutablePointer<Triangle>.allocate(capacity: faces.count)
+    cFaces.initialize(from: UnsafeMutablePointer<Triangle>(mutating: faces), count: faces.count)
+
+    let cVertices = UnsafeMutablePointer<Vertex>.allocate(capacity: vertices.count)
+    cVertices.initialize(from: UnsafeMutablePointer<Vertex>(mutating: vertices), count: vertices.count)
+
+    let cMaterials = UnsafeMutablePointer<Material>.allocate(capacity: materials.count)
+    cMaterials.initialize(from: UnsafeMutablePointer<Material>(mutating: materials), count: materials.count)
+
+    var model = Model(faces: cFaces,
+                      vertices: cVertices,
+                      materials: cMaterials,
                       faceCount: UInt32(faceCount),
                       vertCount: UInt32(vertexCount),
                       matCount: UInt32(materials.count),
