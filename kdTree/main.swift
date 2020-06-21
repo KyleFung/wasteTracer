@@ -1,14 +1,16 @@
 import Foundation
  
-//let objFile = "/Users/kylefung/Downloads/Cartman/Cartman.obj"
-let objFile = "/Users/kylefung/Downloads/bunny.obj"
+let objFile = "/Users/kylefung/Downloads/Cartman/Cartman.obj"
 let dest = URL(fileURLWithPath: "/Users/kylefung/blah.png")
 
 // Load in model and podium mesh
 var model = loadModel(file: objFile)
 
+// Center the model at the origin
+model.transform.translation = -model.centroid
+
 // Ray trace
-let eye = simd_float3(0.0, 0.0, 0.1)
+let eye = simd_float3(0.0, 0.0, 2.0)
 let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
 let res = simd_int2(800, 600)
