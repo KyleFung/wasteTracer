@@ -197,6 +197,15 @@ Intersection missedIntersection() {
     return miss;
 }
 
+Intersection applyTransform(Intersection intersection, Transform transform) {
+    Intersection result = intersection;
+    result.pos *= transform.scale;
+    result.pos = simd_mul(result.pos, transform.rotation);
+    result.pos += transform.translation;
+    result.normal = simd_mul(result.normal, transform.rotation);
+    return result;
+}
+
 Intersection intersectionModel(Model model, Ray r) {
     // Perform model transform on the model (by inverting the transform on the ray)
     r.pos -= model.transform.translation;
@@ -204,11 +213,11 @@ Intersection intersectionModel(Model model, Ray r) {
     r.pos /= model.transform.scale;
     r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
 
-    // Transform ray such that the centroid of the model is at the origin
-    r.pos += model.centroid;
+    Intersection modelIntersection = intersectionTree((KDNode *)model.kdNodes.data,
+                                                      (unsigned int *)model.kdLeaves.data,
+                                                      model.faces, model.vertices, r);
 
-    return intersectionTree((KDNode *)model.kdNodes.data, (unsigned int *)model.kdLeaves.data,
-                            model.faces, model.vertices, r);
+    return applyTransform(modelIntersection, model.transform);
 }
 
 // Partitioning: helpers
