@@ -222,9 +222,30 @@ Intersection intersectionModel(Model model, Ray r) {
 
 // Partitioning: helpers
 
+bool isEmpty(const AABB box) {
+    return simd_any(box.max < box.min);
+}
+
 AABB emptyBox() {
     AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
     return box;
+}
+
+bool inBox(simd_float3 p, const AABB box) {
+    return simd_all(p < box.max && p > box.min);
+}
+
+AABB unionBox(simd_float3 p, const AABB box) {
+    AABB result = box;
+    if (isEmpty(box)) {
+        result.max = p;
+        result.min = p;
+        return result;
+    }
+
+    result.max = simd_max(p, result.max);
+    result.min = simd_min(p, result.min);
+    return result;
 }
 
 void splitAABB(const AABB aabb, const short splitAxis, const float splitPos,
@@ -234,6 +255,105 @@ void splitAABB(const AABB aabb, const short splitAxis, const float splitPos,
     left->max[splitAxis] = splitPos;
     *right = aabb;
     right->min[splitAxis] = splitPos;
+}
+
+typedef struct Polygon {
+    // 9 because that's the max number of vertices a triangle clipped by an AABB can have
+    simd_float3 verts[9];
+    uint8_t vertCount;
+} Polygon;
+
+typedef struct Plane {
+    simd_float4 plane;
+} Plane;
+
+Plane makePlane(const simd_float4 normAndConst) {
+    Plane p;
+    p.plane = normAndConst;
+    return p;
+}
+
+float signedDistToPlane(const simd_float3 p, const Plane plane) {
+    return simd_dot(plane.plane, simd_make_float4(p, 1.0f));
+}
+
+Polygon clipPolygon(const Plane p, const Polygon polygon) {
+    Polygon clipped;
+    clipped.vertCount = 0;
+    for (int vert = 0; vert < polygon.vertCount; vert++) {
+        const int nextVert = (vert + 1 == polygon.vertCount) ? 0 : vert + 1; // Wrap around
+        const simd_float3 currPos = polygon.verts[vert];
+        const simd_float3 nextPos = polygon.verts[nextVert];
+
+        const float currDist = signedDistToPlane(currPos, p);
+        const float nextDist = signedDistToPlane(nextPos, p);
+        const bool currInside = currDist <= 0;
+        const bool nextInside = nextDist <= 0;
+
+        // Do not add this edge as it is completely outside
+        if (!currInside && !nextInside) {
+            continue;
+        }
+        // Add this edge as it is completely inside
+        if (currInside && nextInside) {
+            clipped.verts[clipped.vertCount] = currPos;
+            clipped.verts[clipped.vertCount + 1] = nextPos;
+            clipped.vertCount += 2;
+        }
+        // Replace a straddling edge with a clipped version of itself
+        if (currInside != nextInside) {
+            const float alpha = nextDist / (nextDist - currDist);
+            assert(fabs(nextDist - currDist) > 0.001); // Numerical stability
+            const simd_float3 intersection = alpha * currPos + (1.0f - alpha) * nextPos;
+
+            if (currInside) {
+                clipped.verts[clipped.vertCount] = currPos;
+                clipped.verts[clipped.vertCount + 1] = intersection;
+                clipped.vertCount += 2;
+            } else {
+                clipped.verts[clipped.vertCount] = intersection;
+                clipped.verts[clipped.vertCount + 1] = nextPos;
+                clipped.vertCount += 2;
+            }
+        }
+    }
+    // Assume that plane creation can only add at most one vertex
+    assert(clipped.vertCount - polygon.vertCount <= 1);
+    return clipped;
+}
+
+AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
+    int numInsideVertices = 0;
+    if (inBox(t.v0, clipBox)) { numInsideVertices++; }
+    if (inBox(t.v1, clipBox)) { numInsideVertices++; }
+    if (inBox(t.v2, clipBox)) { numInsideVertices++; }
+
+    if (numInsideVertices == 3) {
+        AABB result = emptyBox();
+        result = unionBox(t.v0, result);
+        result = unionBox(t.v1, result);
+        result = unionBox(t.v2, result);
+        return result;
+    } else {
+        AABB result = emptyBox();
+        Polygon p;
+        p.vertCount = 3;
+        p.verts[0] = t.v0;
+        p.verts[1] = t.v1;
+        p.verts[2] = t.v2;
+
+        p = clipPolygon(makePlane(simd_make_float4( 1.0f,  0.0f,  0.0f, -clipBox.max.x)), p);
+        p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f, -clipBox.min.x)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  1.0f,  0.0f, -clipBox.max.y)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f, -1.0f,  0.0f, -clipBox.min.y)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f,  1.0f, -clipBox.max.z)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f, -clipBox.min.z)), p);
+
+        for (int i = 0; i < p.vertCount; i++) {
+            result = unionBox(p.verts[i], result);
+        }
+        return result;
+    }
 }
 
 static int leafCount = 0;
