@@ -227,7 +227,7 @@ bool isEmpty(const AABB box) {
 }
 
 AABB emptyBox() {
-    AABB box = { simd_make_float3(NAN), simd_make_float3(NAN) };
+    AABB box = { simd_make_float3(-INFINITY), simd_make_float3(INFINITY) };
     return box;
 }
 
@@ -296,9 +296,8 @@ Polygon clipPolygon(const Plane p, const Polygon polygon) {
         }
         // Add this edge as it is completely inside
         if (currInside && nextInside) {
-            clipped.verts[clipped.vertCount] = currPos;
-            clipped.verts[clipped.vertCount + 1] = nextPos;
-            clipped.vertCount += 2;
+            clipped.verts[clipped.vertCount] = nextPos;
+            clipped.vertCount++;
         }
         // Replace a straddling edge with a clipped version of itself
         if (currInside != nextInside) {
@@ -307,9 +306,8 @@ Polygon clipPolygon(const Plane p, const Polygon polygon) {
             const simd_float3 intersection = alpha * currPos + (1.0f - alpha) * nextPos;
 
             if (currInside) {
-                clipped.verts[clipped.vertCount] = currPos;
-                clipped.verts[clipped.vertCount + 1] = intersection;
-                clipped.vertCount += 2;
+                clipped.verts[clipped.vertCount] = intersection;
+                clipped.vertCount++;
             } else {
                 clipped.verts[clipped.vertCount] = intersection;
                 clipped.verts[clipped.vertCount + 1] = nextPos;
@@ -343,11 +341,11 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
         p.verts[2] = t.v2;
 
         p = clipPolygon(makePlane(simd_make_float4( 1.0f,  0.0f,  0.0f, -clipBox.max.x)), p);
-        p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f, -clipBox.min.x)), p);
+        p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f,  clipBox.min.x)), p);
         p = clipPolygon(makePlane(simd_make_float4( 0.0f,  1.0f,  0.0f, -clipBox.max.y)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f, -1.0f,  0.0f, -clipBox.min.y)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f, -1.0f,  0.0f,  clipBox.min.y)), p);
         p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f,  1.0f, -clipBox.max.z)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f, -clipBox.min.z)), p);
+        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f,  clipBox.min.z)), p);
 
         for (int i = 0; i < p.vertCount; i++) {
             result = unionBox(p.verts[i], result);
@@ -573,4 +571,35 @@ Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 loo
     ray.dir = dir;
     ray.pos = eye;
     return ray;
+}
+
+// Testing: external
+
+void runTests() {
+    {
+        AABB box;
+        box.min = simd_make_float3(-1, -1, -1);
+        box.max = simd_make_float3( 1,  1,  1);
+
+        ExplicitTriangle t;
+        t.v0 = simd_make_float3(0.0, 100.0,  100.0);
+        t.v1 = simd_make_float3(0.0, 100.0, -100.0);
+        t.v2 = simd_make_float3(0.0, -100.0, 0.0);
+
+        AABB clipped = clipTriangle(t, box);
+        assert(!isEmpty(clipped));
+    }
+    {
+        AABB box;
+        box.min = simd_make_float3(-1, -1, -1);
+        box.max = simd_make_float3( 1,  1,  1);
+
+        ExplicitTriangle t;
+        t.v0 = simd_make_float3(3.0, 100.0,  100.0);
+        t.v1 = simd_make_float3(3.0, 100.0, -100.0);
+        t.v2 = simd_make_float3(3.0, -100.0, 0.0);
+
+        AABB clipped = clipTriangle(t, box);
+        assert(isEmpty(clipped));
+    }
 }

@@ -1,4 +1,6 @@
 import Foundation
+
+runTests()
  
 let objFile = "/Users/kylefung/Downloads/Cartman/Cartman.obj"
 let dest = URL(fileURLWithPath: "/Users/kylefung/blah.png")

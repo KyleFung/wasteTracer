@@ -127,3 +127,6 @@ void partitionModel(Model *model);
 
 // Tracing
 Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up);
+
+// Testing
+void runTests(void);
