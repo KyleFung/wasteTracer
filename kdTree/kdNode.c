@@ -127,6 +127,15 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
     }
 }
 
+ExplicitTriangle makeExplicitFace(const Vertex vertices[],
+                                  const Triangle t) {
+    ExplicitTriangle explicitFace;
+    explicitFace.v0 = vertices[t.v[0]].pos;
+    explicitFace.v1 = vertices[t.v[1]].pos;
+    explicitFace.v2 = vertices[t.v[2]].pos;
+    return explicitFace;
+}
+
 Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
                               const Triangle *faces, const Vertex *vertices, Ray r) {
     const KDNode root = nodes[0];
@@ -150,10 +159,7 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
         for (int i = 0; i < staticLeafCount; i++) {
             const unsigned int faceIndex = leaf.staticList[i];
             const Triangle triangle = faces[faceIndex];
-            ExplicitTriangle t;
-            t.v0 = vertices[triangle.v[0]].pos;
-            t.v1 = vertices[triangle.v[1]].pos;
-            t.v2 = vertices[triangle.v[2]].pos;
+            ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
             Intersection triIntersect = intersectionTriangle(t, r);
             intersection = closestIntersection(intersection, triIntersect);
@@ -163,10 +169,7 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
         for (int i = 0; i < dynamicLeafCount; i++) {
             const unsigned int faceIndex = leaves[leaf.dynamicListStart + i];
             const Triangle triangle = faces[faceIndex];
-            ExplicitTriangle t;
-            t.v0 = vertices[triangle.v[0]].pos;
-            t.v1 = vertices[triangle.v[1]].pos;
-            t.v2 = vertices[triangle.v[2]].pos;
+            ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
             Intersection triIntersect = intersectionTriangle(t, r);
             intersection = closestIntersection(intersection, triIntersect);
@@ -356,13 +359,41 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
 
 #define PLANAR_TOLERANCE 0.00001f
 typedef struct SplitInfo {
-    uint32_t lCount;
-    uint32_t rCount;
+    uint32_t lCount; // includes planar count if planarToLeft
+    uint32_t rCount; // includes planar count if !planarToLeft
     uint32_t pCount;
     uint32_t splitAxis;
     float splitPos;
     bool planarToLeft;
 } SplitInfo;
+
+typedef struct PartitionCategory {
+    bool left : 1;
+    bool right : 1;
+    bool planar : 1;
+} PartitionCategory;
+
+// 0th bit = left, 1st bit = right, 2nd bit = planar
+PartitionCategory categorizeTriangle(const ExplicitTriangle t,
+                                     const int splitAxis,
+                                     const float splitPos) {
+    PartitionCategory result = { false, false, true };
+    for (int v = 0; v < 3; v++) {
+        if (fabs(t.verts[v][splitAxis] - splitPos) >= PLANAR_TOLERANCE) {
+            if (t.verts[v][splitAxis] < splitPos) {
+                result.left = true;
+                result.planar = false;
+            } else {
+                result.right = true;
+                result.planar = false;
+            }
+        }
+    }
+    if (result.planar) {
+        assert(!result.left && !result.right);
+    }
+    return result;
+}
 
 SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                                          const ByteArray faceIndices,
@@ -395,20 +426,17 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
         simd_int3 rCount = simd_make_int3(0, 0, 0);
         simd_int3 pCount = simd_make_int3(0, 0, 0);
         for (int f = 0; f < faceCount; f++) {
-            Triangle t = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
+            Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
             simd_char3 left = simd_make_char3(false, false, false);
             simd_char3 right = simd_make_char3(false, false, false);
             simd_char3 planar = simd_make_char3(false, false, false);
             for (int v = 0; v < verticesPerFace; v++) {
+                ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
                 for (int split = 0; split < 3; split++) {
-                    Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                    if (fabs(vertex->pos[split] - median[split]) < PLANAR_TOLERANCE) {
-                        planar[split] = true;
-                    } else if (vertex->pos[split] < median[split]) {
-                        left[split] = true;
-                    } else {
-                        right[split] = true;
-                    }
+                    PartitionCategory category = categorizeTriangle(t, split, median[split]);
+                    left[split] = category.left;
+                    right[split] = category.right;
+                    planar[split] = category.planar;
                 }
             }
             for (int split = 0; split < 3; split++) {
@@ -454,8 +482,8 @@ void partitionSerialKD(const AABB aabb,
                        ByteArray *nodes,
                        ByteArray *leaves) {
     const int faceCount = faceIndices.count;
-    const int verticesPerFace = 3;
 
+    // Get an optimal splitting plane for these polygons
     SplitInfo split = getOptimalPartitionMedianSplit(aabb, faceIndices, faces, vertices);
 
     // Cut failed if either lists are the same size as the original
@@ -496,31 +524,17 @@ void partitionSerialKD(const AABB aabb,
         unsigned int planarCounter = 0;
         for (int f = 0; f < faceCount; f++) {
             const unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
-            Triangle t = *getFaceFromArray(faces, faceIndex);
-            bool left = false, right = false, planar = true;
-            for (int v = 0; v < verticesPerFace; v++) {
-                Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                if (fabs(vertex->pos[split.splitAxis] - split.splitPos) >= PLANAR_TOLERANCE) {
-                    if (vertex->pos[split.splitAxis] < split.splitPos) {
-                        left = true;
-                        planar = false;
-                    } else {
-                        right = true;
-                        planar = false;
-                    }
-                }
-            }
-            if (planar) {
-                assert(!left && !right);
+            Triangle face = *getFaceFromArray(faces, faceIndex);
+            ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
+            PartitionCategory category = categorizeTriangle(t, split.splitAxis, split.splitPos);
+            if (category.planar) {
                 planarCounter++;
-                left = split.planarToLeft;
-                right = !split.planarToLeft;
             }
-            if (left) {
+            if (category.left || (category.planar && split.planarToLeft)) {
                 *getIndexFromArray(lIndices, leftCounter) = faceIndex;
                 leftCounter++;
             }
-            if (right) {
+            if (category.right || (category.planar && !split.planarToLeft)) {
                 *getIndexFromArray(rIndices, rightCounter) = faceIndex;
                 rightCounter++;
             }

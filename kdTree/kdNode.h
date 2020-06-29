@@ -23,9 +23,14 @@ typedef struct Triangle {
 } Triangle;
 
 typedef struct ExplicitTriangle {
-    simd_float3 v0;
-    simd_float3 v1;
-    simd_float3 v2;
+    union {
+        simd_float3 verts[3];
+        struct {
+            simd_float3 v0;
+            simd_float3 v1;
+            simd_float3 v2;
+        };
+    };
 } ExplicitTriangle;
 
 typedef struct Material {
