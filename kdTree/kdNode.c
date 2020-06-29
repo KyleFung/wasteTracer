@@ -229,6 +229,11 @@ bool isEmpty(const AABB box) {
     return simd_any(box.max < box.min);
 }
 
+float surfaceArea(const AABB box) {
+    simd_float3 diff = box.max - box.min;
+    return 2.0f * simd_dot(diff.xyz, diff.yzx);
+}
+
 AABB emptyBox() {
     AABB box = { simd_make_float3(-INFINITY), simd_make_float3(INFINITY) };
     return box;
@@ -236,6 +241,13 @@ AABB emptyBox() {
 
 bool inBox(simd_float3 p, const AABB box) {
     return simd_all(p < box.max && p > box.min);
+}
+
+AABB commonBox(const AABB a, const AABB b) {
+    AABB result;
+    result.min = simd_max(a.min, b.min);
+    result.max = simd_min(a.max, b.max);
+    return result;
 }
 
 AABB unionBox(simd_float3 p, const AABB box) {
@@ -305,7 +317,7 @@ Polygon clipPolygon(const Plane p, const Polygon polygon) {
         // Replace a straddling edge with a clipped version of itself
         if (currInside != nextInside) {
             const float alpha = nextDist / (nextDist - currDist);
-            assert(fabs(nextDist - currDist) > 0.001); // Numerical stability
+            assert(fabs(nextDist - currDist) > 0.00000000000001); // Numerical stability
             const simd_float3 intersection = alpha * currPos + (1.0f - alpha) * nextPos;
 
             if (currInside) {
@@ -353,6 +365,11 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
         for (int i = 0; i < p.vertCount; i++) {
             result = unionBox(p.verts[i], result);
         }
+
+        // For numerical stability return intersection of result and input box.
+        if (p.vertCount) {
+            result = commonBox(result, clipBox);
+        }
         return result;
     }
 }
@@ -365,6 +382,7 @@ typedef struct SplitInfo {
     uint32_t splitAxis;
     float splitPos;
     bool planarToLeft;
+    float cost;
 } SplitInfo;
 
 typedef struct PartitionCategory {
@@ -422,6 +440,50 @@ void countPartitions(const unsigned int partitionCount,
     }
 }
 
+SplitInfo getOptimalPartitionSAH(const AABB aabb,
+                                 const ByteArray faceIndices,
+                                 const ByteArray faces,
+                                 const ByteArray vertices) {
+    const int faceCount = faceIndices.count;
+
+    SplitInfo optimalSplit = { 0, 0, 0, 3, NAN, false, INFINITY };
+    for (int f = 0; f < faceCount; f++) {
+        Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
+        ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
+        AABB clippedBox = clipTriangle(t, aabb);
+        if (!isEmpty(clippedBox)) {
+            unsigned int lCount[6], rCount[6], pCount[6];
+            const unsigned int splitTypes[6] = { 0, 1, 2, 0, 1, 2 };
+            const float splitCandidates[6] = { clippedBox.min.x, clippedBox.min.y, clippedBox.min.z,
+                                               clippedBox.max.x, clippedBox.max.y, clippedBox.max.z };
+            countPartitions(6, splitCandidates, splitTypes, faceIndices, faces, vertices,
+                            lCount, rCount, pCount);
+            // Evaluate each of the split candidates for the best one
+            for (int i = 0; i < 6; i++) {
+                AABB left, right;
+                splitAABB(aabb, splitTypes[i], splitCandidates[i], &left, &right);
+                const float saL = surfaceArea(left);
+                const float saR = surfaceArea(right);
+                const bool partitionLeft = saL < saR;
+                const float cost = saL * (lCount[i] + partitionLeft * pCount[i]) +
+                                   saR * (rCount[i] + (1 - partitionLeft) * pCount[i]);
+                if (cost < optimalSplit.cost) {
+                    optimalSplit.cost = cost;
+                    optimalSplit.lCount = lCount[i] + partitionLeft * pCount[i];
+                    optimalSplit.rCount = rCount[i] + (1 - partitionLeft) * pCount[i];
+                    optimalSplit.pCount = pCount[i];
+                    optimalSplit.splitAxis = splitTypes[i];
+                    optimalSplit.splitPos = splitCandidates[i];
+                    optimalSplit.planarToLeft = partitionLeft;
+                    assert(optimalSplit.lCount + optimalSplit.rCount + optimalSplit.pCount >= faceCount);
+                }
+            }
+        }
+    }
+
+    return optimalSplit;
+}
+
 SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                                          const ByteArray faceIndices,
                                          const ByteArray faces,
@@ -445,7 +507,7 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
         }
     }
     simd_float3 vecMed = (vertexMin + vertexMax) * 0.5f;
-    float median[3] = { vecMed.x, vecMed.y, vecMed.z };
+    const float median[3] = { vecMed.x, vecMed.y, vecMed.z };
 
     // Determine memory needed for separate partitions
     {
@@ -478,6 +540,23 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
     return split;
 }
 
+bool shouldTerminate(const SplitInfo split, const AABB aabb, const int faceCount) {
+    if (split.lCount + split.rCount + split.pCount == 0) {
+        return true;
+    }
+
+    if (faceCount <= MAX_STATIC_FACES) {
+        return true;
+    }
+
+    const float leafCost = surfaceArea(aabb) * faceCount;
+    if (leafCost < split.cost) {
+        return true;
+    }
+
+    return false;
+}
+
 static int leafCount = 0;
 void partitionSerialKD(const AABB aabb,
                        const ByteArray faceIndices,
@@ -488,10 +567,11 @@ void partitionSerialKD(const AABB aabb,
     const int faceCount = faceIndices.count;
 
     // Get an optimal splitting plane for these polygons
-    SplitInfo split = getOptimalPartitionMedianSplit(aabb, faceIndices, faces, vertices);
+//    SplitInfo split = getOptimalPartitionMedianSplit(aabb, faceIndices, faces, vertices);
+    SplitInfo split = getOptimalPartitionSAH(aabb, faceIndices, faces, vertices);
 
     // Cut failed if either lists are the same size as the original
-    if (split.lCount == faceCount || split.rCount == faceCount) {
+    if (shouldTerminate(split, aabb, faceCount)) {
         // Shove all faces into a leaf node
         *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
         KDNode *leaf = getNodeFromArray(*nodes, 0);
@@ -510,8 +590,7 @@ void partitionSerialKD(const AABB aabb,
         }
         unsigned int *dynamicFaces = ((unsigned int *)leaves->data) + leaf->leaf.dynamicListStart;
         for (unsigned int f = staticFaceCount; f < faceCount; f++) {
-            unsigned int index = f - 11;
-            static_assert(MAX_STATIC_FACES == 11, "Offset is invalid");
+            unsigned int index = f - MAX_STATIC_FACES;
             dynamicFaces[index] = *getIndexFromArray(faceIndices, f);
         }
         return;

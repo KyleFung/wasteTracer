@@ -79,7 +79,7 @@ typedef struct KDSplitNode {
     unsigned int right;
 } KDSplitNode;
 
-#define MAX_STATIC_FACES sizeof(KDSplitNode) / sizeof(unsigned int) - 1
+#define MAX_STATIC_FACES (uint32_t)(sizeof(KDSplitNode) / sizeof(unsigned int) - 1)
 typedef struct KDLeafNode {
     unsigned int staticList[MAX_STATIC_FACES];
     unsigned int dynamicListStart;
