@@ -354,13 +354,19 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
     }
 }
 
-static int leafCount = 0;
-void partitionSerialKD(const AABB aabb,
-                       const ByteArray faceIndices,
-                       const ByteArray faces,
-                       const ByteArray vertices,
-                       ByteArray *nodes,
-                       ByteArray *leaves) {
+typedef struct SplitInfo {
+    uint32_t lCount;
+    uint32_t rCount;
+    uint32_t splitAxis;
+    float splitPos;
+} SplitInfo;
+
+SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
+                                         const ByteArray faceIndices,
+                                         const ByteArray faces,
+                                         const ByteArray vertices) {
+    SplitInfo split = { 0, 0, 0, NAN };
+
     const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
 
@@ -380,9 +386,6 @@ void partitionSerialKD(const AABB aabb,
     simd_float3 median = (vertexMin + vertexMax) * 0.5f;
 
     // Determine memory needed for separate partitions
-    unsigned int leftCount = 0, rightCount = 0;
-    unsigned int optimalSplit = -1;
-    float optimalMedian = NAN;
     {
         // Partition the faces
         simd_int3 lCount = simd_make_int3(0, 0, 0);
@@ -414,15 +417,30 @@ void partitionSerialKD(const AABB aabb,
         // Analyze split ratios to find optimal split
         int32_t idealSplit = faceCount / 2;
         simd_int3 overLap = simd_abs(lCount - idealSplit) + simd_abs(rCount - idealSplit);
-        optimalSplit = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
-                       (overLap.y < overLap.z) ? 1 : 2;
-        optimalMedian = median[optimalSplit];
-        leftCount = lCount[optimalSplit];
-        rightCount = rCount[optimalSplit];
+        split.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
+                          (overLap.y < overLap.z) ? 1 : 2;
+        split.splitPos = median[split.splitAxis];
+        split.lCount = lCount[split.splitAxis];
+        split.rCount = rCount[split.splitAxis];
     }
 
+    return split;
+}
+
+static int leafCount = 0;
+void partitionSerialKD(const AABB aabb,
+                       const ByteArray faceIndices,
+                       const ByteArray faces,
+                       const ByteArray vertices,
+                       ByteArray *nodes,
+                       ByteArray *leaves) {
+    const int faceCount = faceIndices.count;
+    const int verticesPerFace = 3;
+
+    SplitInfo split = getOptimalPartitionMedianSplit(aabb, faceIndices, faces, vertices);
+
     // Cut failed if either lists are the same size as the original
-    if (leftCount == faceCount || rightCount == faceCount) {
+    if (split.lCount == faceCount || split.rCount == faceCount) {
         // Shove all faces into a leaf node
         *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
         KDNode *leaf = getNodeFromArray(*nodes, 0);
@@ -449,8 +467,8 @@ void partitionSerialKD(const AABB aabb,
     }
 
     // Allocate memory for partitions
-    ByteArray lIndices = initByteArray("UnsignedInt", leftCount, sizeof(unsigned int));
-    ByteArray rIndices = initByteArray("UnsignedInt", rightCount, sizeof(unsigned int));
+    ByteArray lIndices = initByteArray("UnsignedInt", split.lCount, sizeof(unsigned int));
+    ByteArray rIndices = initByteArray("UnsignedInt", split.rCount, sizeof(unsigned int));
 
     // Partition the faces
     {
@@ -462,7 +480,7 @@ void partitionSerialKD(const AABB aabb,
             bool left = false, right = false;
             for (int v = 0; v < verticesPerFace; v++) {
                 Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                if (vertex->pos[optimalSplit] < median[optimalSplit]) {
+                if (vertex->pos[split.splitAxis] < split.splitPos) {
                     left = true;
                 } else {
                     right = true;
@@ -477,13 +495,13 @@ void partitionSerialKD(const AABB aabb,
                 rightCounter++;
             }
         }
-        assert(leftCounter == leftCount);
-        assert(rightCounter == rightCount);
+        assert(leftCounter == split.lCount);
+        assert(rightCounter == split.rCount);
     }
 
     // Subdivide the AABB
     AABB leftBox, rightBox;
-    splitAABB(aabb, optimalSplit, median[optimalSplit], &leftBox, &rightBox);
+    splitAABB(aabb, split.splitAxis, split.splitPos, &leftBox, &rightBox);
 
     // Recurse
     ByteArray leftResult = initByteArray("KDNode", 0, sizeof(KDNode));
@@ -492,11 +510,11 @@ void partitionSerialKD(const AABB aabb,
     partitionSerialKD(rightBox, rIndices, faces, vertices, &rightResult, leaves);
 
     KDNode splitNode;
-    splitNode.type = optimalSplit;
+    splitNode.type = split.splitAxis;
     splitNode.split.aabb = aabb;
     splitNode.split.left = 1;
     splitNode.split.right = 1 + leftResult.count;
-    splitNode.split.split = optimalMedian;
+    splitNode.split.split = split.splitPos;
 
     // Write out result
     unsigned int nodeCount = 1 + leftResult.count + rightResult.count;
