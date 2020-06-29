@@ -354,18 +354,21 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
     }
 }
 
+#define PLANAR_TOLERANCE 0.00001f
 typedef struct SplitInfo {
     uint32_t lCount;
     uint32_t rCount;
+    uint32_t pCount;
     uint32_t splitAxis;
     float splitPos;
+    bool planarToLeft;
 } SplitInfo;
 
 SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                                          const ByteArray faceIndices,
                                          const ByteArray faces,
                                          const ByteArray vertices) {
-    SplitInfo split = { 0, 0, 0, NAN };
+    SplitInfo split = { 0, 0, 0, NAN, false };
 
     const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
@@ -390,14 +393,18 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
         // Partition the faces
         simd_int3 lCount = simd_make_int3(0, 0, 0);
         simd_int3 rCount = simd_make_int3(0, 0, 0);
+        simd_int3 pCount = simd_make_int3(0, 0, 0);
         for (int f = 0; f < faceCount; f++) {
             Triangle t = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
             simd_char3 left = simd_make_char3(false, false, false);
             simd_char3 right = simd_make_char3(false, false, false);
+            simd_char3 planar = simd_make_char3(false, false, false);
             for (int v = 0; v < verticesPerFace; v++) {
                 for (int split = 0; split < 3; split++) {
                     Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                    if (vertex->pos[split] < median[split]) {
+                    if (fabs(vertex->pos[split] - median[split]) < PLANAR_TOLERANCE) {
+                        planar[split] = true;
+                    } else if (vertex->pos[split] < median[split]) {
                         left[split] = true;
                     } else {
                         right[split] = true;
@@ -411,6 +418,10 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                 if (right[split]) {
                     rCount[split]++;
                 }
+                if (simd_all(planar)) {
+                    assert(!right[split] && !left[split]);
+                    pCount[split]++;
+                }
             }
         }
 
@@ -422,6 +433,14 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
         split.splitPos = median[split.splitAxis];
         split.lCount = lCount[split.splitAxis];
         split.rCount = rCount[split.splitAxis];
+        split.pCount = pCount[split.splitAxis];
+        if (split.lCount < split.rCount) {
+            split.planarToLeft = true;
+            split.lCount += split.pCount;
+        } else {
+            split.planarToLeft = false;
+            split.rCount += split.pCount;
+        }
     }
 
     return split;
@@ -474,17 +493,28 @@ void partitionSerialKD(const AABB aabb,
     {
         unsigned int leftCounter = 0;
         unsigned int rightCounter = 0;
+        unsigned int planarCounter = 0;
         for (int f = 0; f < faceCount; f++) {
             const unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
             Triangle t = *getFaceFromArray(faces, faceIndex);
-            bool left = false, right = false;
+            bool left = false, right = false, planar = true;
             for (int v = 0; v < verticesPerFace; v++) {
                 Vertex *vertex = getVertexFromArray(vertices, t.v[v]);
-                if (vertex->pos[split.splitAxis] < split.splitPos) {
-                    left = true;
-                } else {
-                    right = true;
+                if (fabs(vertex->pos[split.splitAxis] - split.splitPos) >= PLANAR_TOLERANCE) {
+                    if (vertex->pos[split.splitAxis] < split.splitPos) {
+                        left = true;
+                        planar = false;
+                    } else {
+                        right = true;
+                        planar = false;
+                    }
                 }
+            }
+            if (planar) {
+                assert(!left && !right);
+                planarCounter++;
+                left = split.planarToLeft;
+                right = !split.planarToLeft;
             }
             if (left) {
                 *getIndexFromArray(lIndices, leftCounter) = faceIndex;
@@ -497,6 +527,7 @@ void partitionSerialKD(const AABB aabb,
         }
         assert(leftCounter == split.lCount);
         assert(rightCounter == split.rCount);
+        assert(planarCounter == split.pCount);
     }
 
     // Subdivide the AABB
