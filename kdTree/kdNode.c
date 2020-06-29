@@ -488,7 +488,7 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                                          const ByteArray faceIndices,
                                          const ByteArray faces,
                                          const ByteArray vertices) {
-    SplitInfo split = { 0, 0, 0, NAN, false };
+    SplitInfo optimalSplit = { 0, 0, 0, 3, NAN, false, INFINITY };
 
     const int faceCount = faceIndices.count;
     const int verticesPerFace = 3;
@@ -522,22 +522,22 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
         simd_int3 lVec = simd_make_int3(lCount[0], lCount[1], lCount[2]);
         simd_int3 rVec = simd_make_int3(rCount[0], rCount[1], rCount[2]);
         simd_int3 overLap = simd_abs(lVec - idealSplit) + simd_abs(rVec - idealSplit);
-        split.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
-                          (overLap.y < overLap.z) ? 1 : 2;
-        split.splitPos = median[split.splitAxis];
-        split.lCount = lCount[split.splitAxis];
-        split.rCount = rCount[split.splitAxis];
-        split.pCount = pCount[split.splitAxis];
-        if (split.lCount < split.rCount) {
-            split.planarToLeft = true;
-            split.lCount += split.pCount;
+        optimalSplit.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
+                                 (overLap.y < overLap.z) ? 1 : 2;
+        optimalSplit.splitPos = median[optimalSplit.splitAxis];
+        optimalSplit.lCount = lCount[optimalSplit.splitAxis];
+        optimalSplit.rCount = rCount[optimalSplit.splitAxis];
+        optimalSplit.pCount = pCount[optimalSplit.splitAxis];
+        if (optimalSplit.lCount < optimalSplit.rCount) {
+            optimalSplit.planarToLeft = true;
+            optimalSplit.lCount += optimalSplit.pCount;
         } else {
-            split.planarToLeft = false;
-            split.rCount += split.pCount;
+            optimalSplit.planarToLeft = false;
+            optimalSplit.rCount += optimalSplit.pCount;
         }
     }
 
-    return split;
+    return optimalSplit;
 }
 
 bool shouldTerminate(const SplitInfo split, const AABB aabb, const int faceCount) {
