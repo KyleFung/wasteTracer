@@ -395,6 +395,33 @@ PartitionCategory categorizeTriangle(const ExplicitTriangle t,
     return result;
 }
 
+void countPartitions(const unsigned int partitionCount,
+                     const float partitions[],
+                     const unsigned int partitionTypes[],
+                     const ByteArray faceIndices,
+                     const ByteArray faces,
+                     const ByteArray vertices,
+                     unsigned int lCount[],
+                     unsigned int rCount[],
+                     unsigned int pCount[]) {
+    for (int p = 0; p < partitionCount; p++) {
+        lCount[p] = 0;
+        rCount[p] = 0;
+        pCount[p] = 0;
+    }
+    for (int f = 0; f < faceIndices.count; f++) {
+        Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
+        ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
+        for (int p = 0; p < partitionCount; p++) {
+            unsigned int split = partitionTypes[p];
+            PartitionCategory category = categorizeTriangle(t, split, partitions[p]);
+            if (category.left) lCount[p]++;
+            if (category.right) rCount[p]++;
+            if (category.planar) pCount[p]++;
+        }
+    }
+}
+
 SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
                                          const ByteArray faceIndices,
                                          const ByteArray faces,
@@ -417,45 +444,22 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
             }
         }
     }
-    simd_float3 median = (vertexMin + vertexMax) * 0.5f;
+    simd_float3 vecMed = (vertexMin + vertexMax) * 0.5f;
+    float median[3] = { vecMed.x, vecMed.y, vecMed.z };
 
     // Determine memory needed for separate partitions
     {
         // Partition the faces
-        simd_int3 lCount = simd_make_int3(0, 0, 0);
-        simd_int3 rCount = simd_make_int3(0, 0, 0);
-        simd_int3 pCount = simd_make_int3(0, 0, 0);
-        for (int f = 0; f < faceCount; f++) {
-            Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
-            simd_char3 left = simd_make_char3(false, false, false);
-            simd_char3 right = simd_make_char3(false, false, false);
-            simd_char3 planar = simd_make_char3(false, false, false);
-            for (int v = 0; v < verticesPerFace; v++) {
-                ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
-                for (int split = 0; split < 3; split++) {
-                    PartitionCategory category = categorizeTriangle(t, split, median[split]);
-                    left[split] = category.left;
-                    right[split] = category.right;
-                    planar[split] = category.planar;
-                }
-            }
-            for (int split = 0; split < 3; split++) {
-                if (left[split]) {
-                    lCount[split]++;
-                }
-                if (right[split]) {
-                    rCount[split]++;
-                }
-                if (simd_all(planar)) {
-                    assert(!right[split] && !left[split]);
-                    pCount[split]++;
-                }
-            }
-        }
+        unsigned int lCount[3], rCount[3], pCount[3];
+        unsigned int splitTypes[3] = { 0, 1, 2 };
+        countPartitions(3, median, splitTypes, faceIndices, faces, vertices,
+                        lCount, rCount, pCount);
 
         // Analyze split ratios to find optimal split
         int32_t idealSplit = faceCount / 2;
-        simd_int3 overLap = simd_abs(lCount - idealSplit) + simd_abs(rCount - idealSplit);
+        simd_int3 lVec = simd_make_int3(lCount[0], lCount[1], lCount[2]);
+        simd_int3 rVec = simd_make_int3(rCount[0], rCount[1], rCount[2]);
+        simd_int3 overLap = simd_abs(lVec - idealSplit) + simd_abs(rVec - idealSplit);
         split.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
                           (overLap.y < overLap.z) ? 1 : 2;
         split.splitPos = median[split.splitAxis];
