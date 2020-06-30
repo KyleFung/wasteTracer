@@ -509,38 +509,41 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
     simd_float3 vecMed = (vertexMin + vertexMax) * 0.5f;
     const float median[3] = { vecMed.x, vecMed.y, vecMed.z };
 
-    // Determine memory needed for separate partitions
-    {
-        // Partition the faces
-        unsigned int lCount[3], rCount[3], pCount[3];
-        unsigned int splitTypes[3] = { 0, 1, 2 };
-        countPartitions(3, median, splitTypes, faceIndices, faces, vertices,
-                        lCount, rCount, pCount);
+    // Count partition sizes
+    unsigned int lCount[3], rCount[3], pCount[3];
+    unsigned int splitTypes[3] = { 0, 1, 2 };
+    countPartitions(3, median, splitTypes, faceIndices, faces, vertices,
+                    lCount, rCount, pCount);
 
-        // Analyze split ratios to find optimal split
-        int32_t idealSplit = faceCount / 2;
-        simd_int3 lVec = simd_make_int3(lCount[0], lCount[1], lCount[2]);
-        simd_int3 rVec = simd_make_int3(rCount[0], rCount[1], rCount[2]);
-        simd_int3 overLap = simd_abs(lVec - idealSplit) + simd_abs(rVec - idealSplit);
-        optimalSplit.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
-                                 (overLap.y < overLap.z) ? 1 : 2;
-        optimalSplit.splitPos = median[optimalSplit.splitAxis];
-        optimalSplit.lCount = lCount[optimalSplit.splitAxis];
-        optimalSplit.rCount = rCount[optimalSplit.splitAxis];
-        optimalSplit.pCount = pCount[optimalSplit.splitAxis];
-        if (optimalSplit.lCount < optimalSplit.rCount) {
-            optimalSplit.planarToLeft = true;
-            optimalSplit.lCount += optimalSplit.pCount;
-        } else {
-            optimalSplit.planarToLeft = false;
-            optimalSplit.rCount += optimalSplit.pCount;
-        }
+    // Analyze split ratios to find optimal split
+    int32_t idealSplit = faceCount / 2;
+    simd_int3 lVec = simd_make_int3(lCount[0], lCount[1], lCount[2]);
+    simd_int3 rVec = simd_make_int3(rCount[0], rCount[1], rCount[2]);
+    simd_int3 overLap = simd_abs(lVec - idealSplit) + simd_abs(rVec - idealSplit);
+    optimalSplit.splitAxis = (overLap.x < overLap.y && overLap.x < overLap.z) ? 0 :
+                             (overLap.y < overLap.z) ? 1 : 2;
+
+    // Populate return struct
+    optimalSplit.splitPos = median[optimalSplit.splitAxis];
+    optimalSplit.lCount = lCount[optimalSplit.splitAxis];
+    optimalSplit.rCount = rCount[optimalSplit.splitAxis];
+    optimalSplit.pCount = pCount[optimalSplit.splitAxis];
+    if (optimalSplit.lCount < optimalSplit.rCount) {
+        optimalSplit.planarToLeft = true;
+        optimalSplit.lCount += optimalSplit.pCount;
+    } else {
+        optimalSplit.planarToLeft = false;
+        optimalSplit.rCount += optimalSplit.pCount;
     }
 
     return optimalSplit;
 }
 
 bool shouldTerminate(const SplitInfo split, const AABB aabb, const int faceCount) {
+    if (split.lCount == faceCount || split.rCount == faceCount) {
+        return true;
+    }
+
     if (split.lCount + split.rCount + split.pCount == 0) {
         return true;
     }
@@ -567,10 +570,9 @@ void partitionSerialKD(const AABB aabb,
     const int faceCount = faceIndices.count;
 
     // Get an optimal splitting plane for these polygons
-//    SplitInfo split = getOptimalPartitionMedianSplit(aabb, faceIndices, faces, vertices);
     SplitInfo split = getOptimalPartitionSAH(aabb, faceIndices, faces, vertices);
 
-    // Cut failed if either lists are the same size as the original
+    // Build a leaf node if we hit termination condition
     if (shouldTerminate(split, aabb, faceCount)) {
         // Shove all faces into a leaf node
         *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
