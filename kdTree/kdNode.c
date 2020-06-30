@@ -118,7 +118,7 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
     float side1 = simd_dot(nor, simd_cross(hitPos - t.v1, t.v2 - t.v1));
     float side2 = simd_dot(nor, simd_cross(hitPos - t.v2, t.v0 - t.v2));
 
-    if (side0 * side1 > 0 && side1 * side2 > 0) {
+    if (side0 * side1 >= 0 && side1 * side2 >= 0) {
         // Intersection
         return makeIntersection(hit, nor, hitPos);
     } else {
