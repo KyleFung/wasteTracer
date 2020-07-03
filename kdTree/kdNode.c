@@ -7,7 +7,7 @@
 float max(float a, float b) {return a > b ? a : b;}
 float min(float a, float b) {return a < b ? a : b;}
 
-// ByteArray: helpers
+// ByteArray
 
 Vertex *getVertexFromArray(ByteArray vertices, unsigned int index) {
     assert(strcmp(vertices.typeName, "Vertex") == 0);
@@ -28,8 +28,6 @@ KDNode *getNodeFromArray(ByteArray nodes, unsigned int index) {
     assert(strcmp(nodes.typeName, "KDNode") == 0);
     return &(((KDNode *)nodes.data)[index]);
 }
-
-// ByteArray: external
 
 void deinitByteArray(ByteArray *byteArray) {
     free(byteArray->data);
@@ -62,7 +60,7 @@ void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
     byteArray->count = newCount;
 }
 
-// Intersection: helpers
+// Intersection
 
 float intersectionBox(AABB b, Ray r) {
     double tmin = -INFINITY, tmax = INFINITY;
@@ -93,6 +91,26 @@ bool intersectsBox(AABB b, Ray r) {
 Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
     Intersection intersection = { distance, normal, pos };
     return intersection;
+}
+
+Intersection missedIntersection() {
+    Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN) };
+    return miss;
+}
+
+bool isHit(Intersection intersection) {
+    return !isnan(intersection.distance);
+}
+
+Intersection closestIntersection(Intersection a, Intersection b) {
+    if (!isHit(a) && !isHit(b)) {
+        return missedIntersection();
+    }
+    else if (isHit(a) && (!isHit(b) || a.distance < b.distance)) {
+        return a;
+    } else {
+        return b;
+    }
 }
 
 simd_float3 normalOf(ExplicitTriangle t) {
@@ -178,28 +196,6 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
     }
 }
 
-// Intersection: external
-
-bool isHit(Intersection intersection) {
-    return !isnan(intersection.distance);
-}
-
-Intersection closestIntersection(Intersection a, Intersection b) {
-    if (!isHit(a) && !isHit(b)) {
-        return missedIntersection();
-    }
-    else if (isHit(a) && (!isHit(b) || a.distance < b.distance)) {
-        return a;
-    } else {
-        return b;
-    }
-}
-
-Intersection missedIntersection() {
-    Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN) };
-    return miss;
-}
-
 Intersection applyTransform(Intersection intersection, Transform transform) {
     Intersection result = intersection;
     result.pos *= transform.scale;
@@ -223,7 +219,7 @@ Intersection intersectionModel(Model model, Ray r) {
     return applyTransform(modelIntersection, model.transform);
 }
 
-// Partitioning: helpers
+// Partitioning
 
 bool isEmpty(const AABB box) {
     return simd_any(box.max < box.min);
@@ -698,7 +694,7 @@ void partitionModel(Model *model) {
     partitionSerialKDRoot(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
 }
 
-// Tracing: external
+// Tracing
 
 Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
     const float focal = 1.0f;
@@ -719,6 +715,52 @@ Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 loo
     ray.dir = dir;
     ray.pos = eye;
     return ray;
+}
+
+simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
+                            simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
+    Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
+
+    // Clear color
+    simd_float4 result = simd_make_float4(0.2, 0.6, 0.9, 1.0);
+
+    // Ray trace
+    const Intersection intersection = intersectionModel(model, ray);
+    if (isHit(intersection)) {
+        simd_float3 pointLight = simd_make_float3(3.0, 3.0, 3.0);
+        simd_float3 lDir = simd_normalize(pointLight - intersection.pos);
+        float lighting = min(1.0, max(0.0, simd_dot(lDir, intersection.normal)));
+
+        Ray shadowRay;
+        shadowRay.pos = intersection.pos + 0.01 * intersection.normal;
+        shadowRay.dir = lDir;
+        const Intersection shadowIntersection = intersectionModel(model, shadowRay);
+        if (isHit(shadowIntersection)) {
+            result = simd_make_float4(0.0, 0.0, 0.0, 1.0);
+        } else {
+            result = simd_make_float4(lighting * simd_make_float3(1.0, 1.0, 1.0), 1.0);
+        }
+    }
+    return result;
+}
+
+// Tracing: external
+
+void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
+                       simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    for (int y = 0; y < res.y; y++) {
+        for (int x = 0; x < res.x; x++) {
+            simd_int2 threadID = simd_make_int2(x, y);
+            simd_float4 floatValue = pathTraceKernel(threadID, model, res, eye, lookAt, up);
+            simd_float4 clampedValue = simd_clamp(floatValue, 0.0, 1.0);
+            simd_uchar4 charValue = simd_make_uchar4(clampedValue.x * 255,
+                                                     clampedValue.y * 255,
+                                                     clampedValue.z * 255,
+                                                     clampedValue.w * 255);
+            pixels[(res.y - y - 1) * res.x + x] = charValue;
+        }
+    }
 }
 
 // Testing: external

@@ -116,22 +116,12 @@ typedef struct Intersection {
     simd_float3 pos;
 } Intersection;
 
-// Memory management
-void deinitByteArray(ByteArray *byteArray);
-ByteArray initByteArray(const char *typeName, unsigned int elementCount, unsigned int elementSize);
-void resizeByteArray(ByteArray *byteArray, unsigned int newCount);
-
-// Intersection
-bool isHit(Intersection intersection);
-Intersection closestIntersection(Intersection a, Intersection b);
-Intersection missedIntersection(void);
-Intersection intersectionModel(Model model, Ray r);
-
 // Partitioning
 void partitionModel(Model *model);
 
 // Tracing
-Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up);
+void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
+                       simd_float3 eye, simd_float3 lookAt, simd_float3 up);
 
 // Testing
 void runTests(void);
