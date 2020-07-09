@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h> // for printf
+#include <stdlib.h> // for rand
 #include <string.h>
 
 float max(float a, float b) {return a > b ? a : b;}
@@ -717,38 +718,59 @@ Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 loo
     return ray;
 }
 
+float fract(float x) {
+    float whole;
+    return modff(x, &whole);
+}
+
+float hash(float seed) {
+    return fract(sin(seed) * 43758.5453);
+}
+
+simd_float3 cosineDirection(float seed, simd_float3 nor) {
+    simd_float3 tc = simd_make_float3(1.0 + nor.z - nor.xy * nor.xy, -nor.x * nor.y) / (1.0 + nor.z);
+    simd_float3 uu = simd_make_float3(tc.x, tc.z, -nor.x);
+    simd_float3 vv = simd_make_float3(tc.z, tc.y, -nor.y);
+
+    float u = fabs(hash(78.233 + seed));
+    float v = fabs(hash(10.873 + seed));
+    float a = 6.283185 * v;
+
+    return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
+}
+
 simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
                             simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
-    Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
 
-    // Clear color
-    simd_float4 result = simd_make_float4(0.2, 0.6, 0.9, 1.0);
+    simd_float3 result = simd_make_float3(0.0, 0.0, 0.0);
+    for (unsigned int iteration = 0; iteration < 32; iteration++) {
+        simd_float3 f = simd_make_float3(0.0, 0.0, 0.0);
+        simd_float3 lum = simd_make_float3(1.0, 1.0, 1.0);
 
-    // Ray trace
-    const Intersection intersection = intersectionModel(model, ray);
-    if (isHit(intersection)) {
-        simd_float3 pointLight = simd_make_float3(3.0, 3.0, 3.0);
-        simd_float3 lDir = simd_normalize(pointLight - intersection.pos);
-        float lighting = min(1.0, max(0.0, simd_dot(lDir, intersection.normal)));
-
-        Ray shadowRay;
-        shadowRay.pos = intersection.pos + 0.01 * intersection.normal;
-        shadowRay.dir = lDir;
-        const Intersection shadowIntersection = intersectionModel(model, shadowRay);
-        if (isHit(shadowIntersection)) {
-            result = simd_make_float4(0.0, 0.0, 0.0, 1.0);
-        } else {
-            result = simd_make_float4(lighting * simd_make_float3(1.0, 1.0, 1.0), 1.0);
+        Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
+        for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
+            const Intersection intersection = intersectionModel(model, ray);
+            if (isHit(intersection)) {
+                ray.pos = intersection.pos + 0.01 * intersection.normal;
+                float seed = (float)rand() / (float)(RAND_MAX / 1.0f);
+                ray.dir = simd_normalize(cosineDirection(seed, intersection.normal));
+                lum *= 2.0 * 0.5 * simd_dot(ray.dir, intersection.normal);
+            } else {
+                f = lum;
+            }
         }
+        result = ((result * (iteration)) + f) / (iteration + 1.0);
     }
-    return result;
+
+    return simd_make_float4(result, 1.0f);
 }
 
 // Tracing: external
 
 void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
                        simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    srand(0xdeadbeef);
     for (int y = 0; y < res.y; y++) {
         for (int x = 0; x < res.x; x++) {
             simd_int2 threadID = simd_make_int2(x, y);

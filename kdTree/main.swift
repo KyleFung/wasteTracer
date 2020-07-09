@@ -15,7 +15,7 @@ model.transform.translation = -model.centroid
 let eye = simd_float3(0.0, 0.0, 2.0)
 let lookAt = simd_float3(0.0, 0.0, -1.0)
 let up = simd_float3(0.0, 1.0, 0.0)
-let res = simd_int2(800, 600)
+let res = simd_int2(400, 300)
 var outImage = [simd_uchar4](repeating: simd_uchar4(), count: Int(res.x * res.y))
 
 calculateRadiance(model, UnsafeMutablePointer<simd_uchar4>(mutating: outImage), res, eye, lookAt, up)
