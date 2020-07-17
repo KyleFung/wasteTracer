@@ -745,22 +745,34 @@ simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
 
     simd_float3 result = simd_make_float3(0.0, 0.0, 0.0);
     for (unsigned int iteration = 0; iteration < 32; iteration++) {
-        simd_float3 f = simd_make_float3(0.0, 0.0, 0.0);
-        simd_float3 lum = simd_make_float3(1.0, 1.0, 1.0);
+        simd_float3 sumOfPaths = simd_make_float3(0.0f, 0.0f, 0.0f);
+        simd_float3 throughPut = simd_make_float3(1.0f, 1.0f, 1.0f);
+        float pdf = 1.0f;
 
         Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
         for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
             const Intersection intersection = intersectionModel(model, ray);
             if (isHit(intersection)) {
+                // Hit geometry (continue tracing)
                 ray.pos = intersection.pos + 0.01 * intersection.normal;
                 float seed = (float)rand() / (float)(RAND_MAX / 1.0f);
                 ray.dir = simd_normalize(cosineDirection(seed, intersection.normal));
-                lum *= 2.0 * 0.5 * simd_dot(ray.dir, intersection.normal);
+
+                // Increment the ray (assuming that no geometry is emissive)
+                const float pi_inverse = 1.0f / 3.14159f;
+                const float brdf = 0.95f * pi_inverse;
+                const float geometry = simd_dot(ray.dir, intersection.normal);
+                pdf *= pi_inverse;
+                throughPut *= brdf * geometry;
             } else {
-                f = lum;
+                // Hit the skybox (uniform radiance)
+                sumOfPaths += throughPut * simd_make_float3(1.0f, 1.0f, 1.0f);
+                break;
             }
         }
-        result = ((result * (iteration)) + f) / (iteration + 1.0);
+        const simd_float3 estimate = sumOfPaths / pdf;
+        result *= ((float) iteration) / (iteration + 1);
+        result += estimate / (iteration + 1);
     }
 
     return simd_make_float4(result, 1.0f);
