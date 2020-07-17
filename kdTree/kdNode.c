@@ -727,6 +727,14 @@ float hash(float seed) {
     return fract(sin(seed) * 43758.5453);
 }
 
+float goldenSequence(float seed) {
+    return fract(seed + 1.61803398875f);
+}
+
+float sqrt2Sequence(float seed) {
+    return fract(seed + 1.41421356237f);
+}
+
 simd_float3 cosineDirection(float seed, simd_float3 nor) {
     simd_float3 tc = simd_make_float3(1.0 + nor.z - nor.xy * nor.xy, -nor.x * nor.y) / (1.0 + nor.z);
     simd_float3 uu = simd_make_float3(tc.x, tc.z, -nor.x);
@@ -739,7 +747,7 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
     return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
 }
 
-simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
+simd_float4 pathTraceKernel(simd_int2 threadID, float seed, Model model, simd_int2 res,
                             simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
 
@@ -755,7 +763,7 @@ simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
             if (isHit(intersection)) {
                 // Hit geometry (continue tracing)
                 ray.pos = intersection.pos + 0.01 * intersection.normal;
-                float seed = (float)rand() / (float)(RAND_MAX / 1.0f);
+                seed = goldenSequence(seed);
                 ray.dir = simd_normalize(cosineDirection(seed, intersection.normal));
 
                 // Increment the ray (assuming that no geometry is emissive)
@@ -780,13 +788,15 @@ simd_float4 pathTraceKernel(simd_int2 threadID, Model model, simd_int2 res,
 
 // Tracing: external
 
-void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
-                       simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
-    srand(0xdeadbeef);
-    for (int y = 0; y < res.y; y++) {
-        for (int x = 0; x < res.x; x++) {
+void calculateRadianceSubImage(Model model, float seed, simd_uchar4 *pixels,
+                               simd_int2 res, simd_int2 start, simd_int2 end,
+                               simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    float runningSeed = seed;
+    for (int y = start.y; y < end.y; y++) {
+        for (int x = start.x; x < end.x; x++) {
             simd_int2 threadID = simd_make_int2(x, y);
-            simd_float4 floatValue = pathTraceKernel(threadID, model, res, eye, lookAt, up);
+            runningSeed = sqrt2Sequence(runningSeed);
+            simd_float4 floatValue = pathTraceKernel(threadID, runningSeed, model, res, eye, lookAt, up);
             simd_float4 clampedValue = simd_clamp(floatValue, 0.0, 1.0);
             simd_uchar4 charValue = simd_make_uchar4(clampedValue.x * 255,
                                                      clampedValue.y * 255,
@@ -794,6 +804,19 @@ void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
                                                      clampedValue.w * 255);
             pixels[(res.y - y - 1) * res.x + x] = charValue;
         }
+    }
+}
+
+void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
+                       simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+    srand(0xdeadbeef);
+    // Divide the image into a number of threads
+    const int numThreads = 8;
+    for (int i = 0; i < numThreads; i++) {
+        simd_int2 start = simd_make_int2(0, (res.y * i) / 8);
+        simd_int2 end = simd_make_int2(res.x, min(res.y, (res.y * (i + 1)) / 8));
+        float seed = (float) rand() / (float)(RAND_MAX);
+        calculateRadianceSubImage(model, seed, pixels, res, start, end, eye, lookAt, up);
     }
 }
 
