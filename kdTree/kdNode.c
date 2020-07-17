@@ -1,6 +1,7 @@
 #include "kdNode.h"
 
 #include <assert.h>
+#include <pthread.h>
 #include <stdio.h> // for printf
 #include <stdlib.h> // for rand
 #include <string.h>
@@ -788,9 +789,30 @@ simd_float4 pathTraceKernel(simd_int2 threadID, float seed, Model model, simd_in
 
 // Tracing: external
 
-void calculateRadianceSubImage(Model model, float seed, simd_uchar4 *pixels,
-                               simd_int2 res, simd_int2 start, simd_int2 end,
-                               simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+typedef struct KernelArgs {
+    float seed;
+    Model model;
+    simd_uchar4 *pixels;
+    simd_int2 res;
+    simd_int2 start;
+    simd_int2 end;
+    simd_float3 eye;
+    simd_float3 lookAt;
+    simd_float3 up;
+} KernelArgs;
+
+void *calculateRadianceSubImage(void *arguments) {
+    const KernelArgs args = *(KernelArgs *) arguments;
+    float seed = args.seed;
+    Model model = args.model;
+    simd_uchar4 *pixels = args.pixels;
+    simd_int2 res = args.res;
+    simd_int2 start = args.start;
+    simd_int2 end = args.end;
+    simd_float3 eye = args.eye;
+    simd_float3 lookAt = args.lookAt;
+    simd_float3 up = args.up;
+
     float runningSeed = seed;
     for (int y = start.y; y < end.y; y++) {
         for (int x = start.x; x < end.x; x++) {
@@ -805,6 +827,7 @@ void calculateRadianceSubImage(Model model, float seed, simd_uchar4 *pixels,
             pixels[(res.y - y - 1) * res.x + x] = charValue;
         }
     }
+    return NULL;
 }
 
 void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
@@ -812,11 +835,28 @@ void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
     srand(0xdeadbeef);
     // Divide the image into a number of threads
     const int numThreads = 8;
+
+    pthread_t threads[numThreads];
+    KernelArgs args[numThreads];
+
     for (int i = 0; i < numThreads; i++) {
-        simd_int2 start = simd_make_int2(0, (res.y * i) / 8);
-        simd_int2 end = simd_make_int2(res.x, min(res.y, (res.y * (i + 1)) / 8));
-        float seed = (float) rand() / (float)(RAND_MAX);
-        calculateRadianceSubImage(model, seed, pixels, res, start, end, eye, lookAt, up);
+        args[i].seed = (float) rand() / (float)(RAND_MAX);
+        args[i].model = model;
+        args[i].pixels = pixels;
+        args[i].res = res;
+        args[i].start = simd_make_int2(0, (res.y * i) / 8);
+        args[i].end = simd_make_int2(res.x, min(res.y, (res.y * (i + 1)) / numThreads));
+        args[i].eye = eye;
+        args[i].lookAt = lookAt;
+        args[i].up = up;
+    }
+
+    for (int i = 0; i < numThreads; i++) {
+        pthread_create(&threads[i], NULL, calculateRadianceSubImage, (void *)&args[i]);
+    }
+
+    for (int i = 0; i < numThreads; i++) {
+        pthread_join(threads[i], NULL);
     }
 }
 
