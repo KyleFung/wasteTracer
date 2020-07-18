@@ -1,13 +1,6 @@
-//
-//  AppDelegate.swift
-//  pathTracer
-//
-//  Created by Kyle Fung on 2020-07-18.
-//  Copyright © 2020 Kyle Fung. All rights reserved.
-//
-
 import Cocoa
 import SwiftUI
+import PathTracerCore
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {

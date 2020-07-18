@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2C31AA8024C375F5004A4857 /* pathTracerCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C31AA7F24C375F5004A4857 /* pathTracerCore.framework */; };
 		2C4EFA6224C3708F0078EDCD /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6124C3708F0078EDCD /* AppDelegate.swift */; };
 		2C4EFA6424C3708F0078EDCD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6324C3708F0078EDCD /* ContentView.swift */; };
 		2C4EFA6624C370920078EDCD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6524C370920078EDCD /* Assets.xcassets */; };
@@ -14,24 +15,8 @@
 		2C4EFA6C24C370920078EDCD /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6A24C370920078EDCD /* Main.storyboard */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		2C4EFA7424C370920078EDCD /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 2C4EFA5624C3708F0078EDCD /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 2C4EFA5D24C3708F0078EDCD;
-			remoteInfo = pathTracer;
-		};
-		2C4EFA7F24C370920078EDCD /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 2C4EFA5624C3708F0078EDCD /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 2C4EFA5D24C3708F0078EDCD;
-			remoteInfo = pathTracer;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
+		2C31AA7F24C375F5004A4857 /* pathTracerCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = pathTracerCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C4EFA5E24C3708F0078EDCD /* pathTracer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pathTracer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C4EFA6124C3708F0078EDCD /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2C4EFA6324C3708F0078EDCD /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -47,31 +32,27 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2C4EFA7024C370920078EDCD /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2C4EFA7B24C370920078EDCD /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				2C31AA8024C375F5004A4857 /* pathTracerCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2C31AA7E24C375F5004A4857 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2C31AA7F24C375F5004A4857 /* pathTracerCore.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		2C4EFA5524C3708F0078EDCD = {
 			isa = PBXGroup;
 			children = (
 				2C4EFA6024C3708F0078EDCD /* pathTracer */,
 				2C4EFA5F24C3708F0078EDCD /* Products */,
+				2C31AA7E24C375F5004A4857 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -138,14 +119,6 @@
 					2C4EFA5D24C3708F0078EDCD = {
 						CreatedOnToolsVersion = 11.3.1;
 					};
-					2C4EFA7224C370920078EDCD = {
-						CreatedOnToolsVersion = 11.3.1;
-						TestTargetID = 2C4EFA5D24C3708F0078EDCD;
-					};
-					2C4EFA7D24C370920078EDCD = {
-						CreatedOnToolsVersion = 11.3.1;
-						TestTargetID = 2C4EFA5D24C3708F0078EDCD;
-					};
 				};
 			};
 			buildConfigurationList = 2C4EFA5924C3708F0078EDCD /* Build configuration list for PBXProject "pathTracer" */;
@@ -177,20 +150,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		2C4EFA7124C370920078EDCD /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2C4EFA7C24C370920078EDCD /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -203,34 +162,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		2C4EFA6F24C370920078EDCD /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2C4EFA7A24C370920078EDCD /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		2C4EFA7524C370920078EDCD /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 2C4EFA5D24C3708F0078EDCD /* pathTracer */;
-			targetProxy = 2C4EFA7424C370920078EDCD /* PBXContainerItemProxy */;
-		};
-		2C4EFA8024C370920078EDCD /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 2C4EFA5D24C3708F0078EDCD /* pathTracer */;
-			targetProxy = 2C4EFA7F24C370920078EDCD /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		2C4EFA6A24C370920078EDCD /* Main.storyboard */ = {
