@@ -1,7 +1,6 @@
 import Foundation
 
 class StreamReader  {
-    
     let encoding : String.Encoding
     let chunkSize : Int
     var fileHandle : FileHandle!
@@ -9,17 +8,19 @@ class StreamReader  {
     var buffer : Data
     var atEof : Bool
     
-    init?(path: String, delimiter: String = "\n", encoding: String.Encoding = .utf8,
+    init?(path: URL, delimiter: String = "\n", encoding: String.Encoding = .utf8,
           chunkSize: Int = 4096) {
-        
-        guard let fileHandle = FileHandle(forReadingAtPath: path),
-            let delimData = delimiter.data(using: encoding) else {
-                return nil
+
+        do {
+            self.fileHandle = try FileHandle(forReadingFrom: path)
+            self.delimData = delimiter.data(using: encoding)!
+        } catch let error as NSError {
+            print(error)
+            return nil
         }
+
         self.encoding = encoding
         self.chunkSize = chunkSize
-        self.fileHandle = fileHandle
-        self.delimData = delimData
         self.buffer = Data(capacity: chunkSize)
         self.atEof = false
     }

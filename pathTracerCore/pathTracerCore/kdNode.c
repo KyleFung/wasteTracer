@@ -747,7 +747,7 @@ simd_float4 pathTraceKernel(simd_int2 threadID, float seed, Model model, simd_in
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
 
     simd_float3 result = simd_make_float3(0.0, 0.0, 0.0);
-    for (unsigned int iteration = 0; iteration < 64; iteration++) {
+    for (unsigned int iteration = 0; iteration < 1; iteration++) {
         simd_float3 sumOfPaths = simd_make_float3(0.0f, 0.0f, 0.0f);
         simd_float3 throughPut = simd_make_float3(1.0f, 1.0f, 1.0f);
         float pdf = 1.0f;

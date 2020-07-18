@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2C31AA8024C375F5004A4857 /* pathTracerCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C31AA7F24C375F5004A4857 /* pathTracerCore.framework */; };
 		2C4EFA6224C3708F0078EDCD /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6124C3708F0078EDCD /* AppDelegate.swift */; };
 		2C4EFA6424C3708F0078EDCD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6324C3708F0078EDCD /* ContentView.swift */; };
 		2C4EFA6624C370920078EDCD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6524C370920078EDCD /* Assets.xcassets */; };
@@ -15,9 +14,27 @@
 		2C4EFA6C24C370920078EDCD /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2C4EFA6A24C370920078EDCD /* Main.storyboard */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		2C31AA9024C38A19004A4857 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2C31AA8C24C38A19004A4857 /* PathTracerCore.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 2C31AA6524C373E5004A4857;
+			remoteInfo = PathTracerCore;
+		};
+		2C31AA9224C38A1E004A4857 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2C31AA8C24C38A19004A4857 /* PathTracerCore.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 2C31AA6424C373E5004A4857;
+			remoteInfo = PathTracerCore;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		2C31AA7F24C375F5004A4857 /* pathTracerCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = pathTracerCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		2C4EFA5E24C3708F0078EDCD /* pathTracer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pathTracer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C31AA8C24C38A19004A4857 /* PathTracerCore.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = PathTracerCore.xcodeproj; path = ../pathTracerCore/PathTracerCore.xcodeproj; sourceTree = "<group>"; };
+		2C4EFA5E24C3708F0078EDCD /* PathTracer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PathTracer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C4EFA6124C3708F0078EDCD /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2C4EFA6324C3708F0078EDCD /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2C4EFA6524C370920078EDCD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -32,7 +49,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2C31AA8024C375F5004A4857 /* pathTracerCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -47,9 +63,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		2C31AA8D24C38A19004A4857 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2C31AA9124C38A19004A4857 /* PathTracerCore.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		2C4EFA5524C3708F0078EDCD = {
 			isa = PBXGroup;
 			children = (
+				2C31AA8C24C38A19004A4857 /* PathTracerCore.xcodeproj */,
 				2C4EFA6024C3708F0078EDCD /* pathTracer */,
 				2C4EFA5F24C3708F0078EDCD /* Products */,
 				2C31AA7E24C375F5004A4857 /* Frameworks */,
@@ -59,7 +84,7 @@
 		2C4EFA5F24C3708F0078EDCD /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2C4EFA5E24C3708F0078EDCD /* pathTracer.app */,
+				2C4EFA5E24C3708F0078EDCD /* PathTracer.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,9 +114,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2C4EFA5D24C3708F0078EDCD /* pathTracer */ = {
+		2C4EFA5D24C3708F0078EDCD /* PathTracer */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2C4EFA8724C370920078EDCD /* Build configuration list for PBXNativeTarget "pathTracer" */;
+			buildConfigurationList = 2C4EFA8724C370920078EDCD /* Build configuration list for PBXNativeTarget "PathTracer" */;
 			buildPhases = (
 				2C4EFA5A24C3708F0078EDCD /* Sources */,
 				2C4EFA5B24C3708F0078EDCD /* Frameworks */,
@@ -100,10 +125,11 @@
 			buildRules = (
 			);
 			dependencies = (
+				2C31AA9324C38A1E004A4857 /* PBXTargetDependency */,
 			);
-			name = pathTracer;
+			name = PathTracer;
 			productName = pathTracer;
-			productReference = 2C4EFA5E24C3708F0078EDCD /* pathTracer.app */;
+			productReference = 2C4EFA5E24C3708F0078EDCD /* PathTracer.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -121,7 +147,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 2C4EFA5924C3708F0078EDCD /* Build configuration list for PBXProject "pathTracer" */;
+			buildConfigurationList = 2C4EFA5924C3708F0078EDCD /* Build configuration list for PBXProject "PathTracer" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -132,12 +158,28 @@
 			mainGroup = 2C4EFA5524C3708F0078EDCD;
 			productRefGroup = 2C4EFA5F24C3708F0078EDCD /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 2C31AA8D24C38A19004A4857 /* Products */;
+					ProjectRef = 2C31AA8C24C38A19004A4857 /* PathTracerCore.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
-				2C4EFA5D24C3708F0078EDCD /* pathTracer */,
+				2C4EFA5D24C3708F0078EDCD /* PathTracer */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		2C31AA9124C38A19004A4857 /* PathTracerCore.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = PathTracerCore.framework;
+			remoteRef = 2C31AA9024C38A19004A4857 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		2C4EFA5C24C3708F0078EDCD /* Resources */ = {
@@ -163,6 +205,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2C31AA9324C38A1E004A4857 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = PathTracerCore;
+			targetProxy = 2C31AA9224C38A1E004A4857 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		2C4EFA6A24C370920078EDCD /* Main.storyboard */ = {
@@ -334,7 +384,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2C4EFA5924C3708F0078EDCD /* Build configuration list for PBXProject "pathTracer" */ = {
+		2C4EFA5924C3708F0078EDCD /* Build configuration list for PBXProject "PathTracer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2C4EFA8524C370920078EDCD /* Debug */,
@@ -343,7 +393,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2C4EFA8724C370920078EDCD /* Build configuration list for PBXNativeTarget "pathTracer" */ = {
+		2C4EFA8724C370920078EDCD /* Build configuration list for PBXNativeTarget "PathTracer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2C4EFA8824C370920078EDCD /* Debug */,

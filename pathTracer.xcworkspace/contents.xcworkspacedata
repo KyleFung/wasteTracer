@@ -5,6 +5,6 @@
       location = "group:/Users/kylefung/kdTree/pathTracerCore/PathTracerCore.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:pathTracer/pathTracer.xcodeproj">
+      location = "group:/Users/kylefung/kdTree/pathTracer/PathTracer.xcodeproj">
    </FileRef>
 </Workspace>

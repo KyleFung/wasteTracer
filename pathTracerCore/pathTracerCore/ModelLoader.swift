@@ -27,13 +27,14 @@ func toUnsafe(_ string: String) -> UnsafeMutablePointer<Int8> {
 }
 
 public func loadModel(file: String) -> Model {
-    let dirPath = URL(string: file)!.deletingLastPathComponent().absoluteString
+    let fullPath = URL(string: file)!
+    let dirPath = fullPath.deletingLastPathComponent().absoluteString
     var vertexCount: Int = 0
     var faceCount: Int = 0
     var materials: [Material] = []
     var textures: [Texture] = []
 
-    if let aStreamReader = StreamReader(path: file) {
+    if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }
@@ -64,7 +65,7 @@ public func loadModel(file: String) -> Model {
     var aabbMax = simd_float3(repeating: -Float.infinity)
     var centroid = simd_float3(repeating: 0)
     var vertAttributes: Set<String> = .init()
-    if let aStreamReader = StreamReader(path: file) {
+    if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }
@@ -94,7 +95,7 @@ public func loadModel(file: String) -> Model {
     // Collect faces
     var faces = [Triangle](repeating: Triangle(), count: faceCount)
     faceCount = 0
-    if let aStreamReader = StreamReader(path: objFile) {
+    if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }
@@ -143,8 +144,9 @@ public func loadModel(file: String) -> Model {
 }
 
 func loadMaterials(file: String, materials: inout [Material], textures: inout [Texture]) {
-    let dirPath = URL(string: file)!.deletingLastPathComponent().absoluteString
-    if let aStreamReader = StreamReader(path: file) {
+    let fullPath = URL(string: file)!
+    let dirPath = fullPath.deletingLastPathComponent().absoluteString
+    if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }

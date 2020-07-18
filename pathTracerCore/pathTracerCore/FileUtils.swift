@@ -1,6 +1,6 @@
 import Foundation
 
-func imageFromRGBA32Bitmap(pixels: [simd_uchar4], width: Int, height: Int) -> CGImage? {
+public func imageFromRGBA32Bitmap(pixels: [simd_uchar4], width: Int, height: Int) -> CGImage? {
     guard width > 0 && height > 0 else { return nil }
     guard pixels.count == width * height else { return nil }
 
