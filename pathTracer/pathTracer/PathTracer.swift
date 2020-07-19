@@ -5,7 +5,7 @@ class PathTracer {
     static let defaultRes = simd_int2(400, 300)
 
     // Scene fields
-    let eye = simd_float3(0.0, 0.0, 2.0)
+    let eye = simd_float3(0.0, 0.0, 0.1)
     let lookAt = simd_float3(0.0, 0.0, -1.0)
     let up = simd_float3(0.0, 1.0, 0.0)
     let res = simd_int2(defaultRes.x, defaultRes.y)
@@ -37,6 +37,24 @@ class PathTracer {
     }
 
     var delegate: PathTracerProtocol?
+}
+
+class AddRadianceSamples: Operation {
+    let pathTracer: PathTracer
+    let sampleCount: Int
+
+    init(_ pathTracer: PathTracer, sampleCount: Int) {
+        self.pathTracer = pathTracer
+        self.sampleCount = sampleCount
+    }
+
+    override func main () {
+        if isCancelled {
+            return
+        }
+
+        pathTracer.calculateSamples(numSamples: uint32(sampleCount))
+    }
 }
 
 protocol PathTracerProtocol {

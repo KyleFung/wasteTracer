@@ -5,8 +5,10 @@ import simd
 class ViewController: NSViewController {
     var pathTracer = PathTracer()
 
-    @IBAction func recomputeButton(_ sender: NSButton) {
-        pathTracer.calculateSamples(numSamples: 4)
+    @IBAction func computeSamplesButton(_ sender: NSButton) {
+        let operation = AddRadianceSamples(pathTracer, sampleCount: 128)
+        let queue = OperationQueue()
+        queue.addOperation(operation)
     }
 
     @IBAction func loadObjButton(_ sender: NSButton) {
@@ -44,9 +46,11 @@ extension ViewController: PathTracerProtocol {
                                             width: Int(pathTracer.res.x),
                                             height: Int(pathTracer.res.y))
         if let cgImage = cgImage {
-            let imageSize = NSSize(width: cgImage.width, height: cgImage.height)
-            imageView.image = NSImage(cgImage: cgImage, size: imageSize)
-            imageView.needsDisplay = true
+            DispatchQueue.main.async {
+                let imageSize = NSSize(width: cgImage.width, height: cgImage.height)
+                self.imageView.image = NSImage(cgImage: cgImage, size: imageSize)
+                self.imageView.needsDisplay = true
+            }
         }
     }
 }
