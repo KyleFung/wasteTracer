@@ -12,7 +12,6 @@ class PathTracer {
     var model: Model?
 
     // Image fields
-    let objFile = "/Users/kylefung/Downloads/bunny.obj"
     var pixels = [simd_uchar4](repeating: simd_uchar4(), count: Int(defaultRes.x * defaultRes.y))
 
     func setModelCentered(model: Model) {

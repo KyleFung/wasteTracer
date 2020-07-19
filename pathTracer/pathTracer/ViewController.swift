@@ -5,14 +5,25 @@ import simd
 class ViewController: NSViewController {
     var pathTracer = PathTracer()
 
+    @IBAction func loadObjButton(_ sender: NSButton) {
+        let filePicker = NSOpenPanel()
+        filePicker.allowsMultipleSelection = false
+        filePicker.canChooseDirectories = false
+        filePicker.canChooseFiles = true
+        filePicker.allowedFileTypes = ["obj"]
+
+        filePicker.runModal()
+        if let chosenFile = filePicker.url {
+            pathTracer.setModelCentered(model: loadModel(file: chosenFile.absoluteString))
+            pathTracer.calculate1Sample()
+        }
+    }
+
     @IBOutlet weak var imageView: NSImageView!
 
     override func viewDidLoad() {
         super.viewDidLoad()
         pathTracer.delegate = self
-
-        pathTracer.setModelCentered(model: loadModel(file: pathTracer.objFile))
-        pathTracer.calculate1Sample()
     }
 
     override var representedObject: Any? {
