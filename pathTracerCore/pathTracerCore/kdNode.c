@@ -218,7 +218,11 @@ Intersection intersectionModel(Model model, Ray r) {
                                                       (unsigned int *)model.kdLeaves.data,
                                                       model.faces, model.vertices, r);
 
-    return applyTransform(modelIntersection, model.transform);
+    if (isHit(modelIntersection)) {
+        return applyTransform(modelIntersection, model.transform);
+    }
+
+    return modelIntersection;
 }
 
 // Partitioning
@@ -742,44 +746,43 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
     return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
 }
 
-simd_float4 pathTraceKernel(simd_int2 threadID, float seed, Model model, simd_int2 res,
-                            simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+void pathTraceKernel(simd_int2 threadID, float seed,
+                     simd_float4 *radiance /* inout */, int sampleCount,
+                     Model model, simd_int2 res,
+                     simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
 
-    simd_float3 result = simd_make_float3(0.0, 0.0, 0.0);
-    for (unsigned int iteration = 0; iteration < 1; iteration++) {
-        simd_float3 sumOfPaths = simd_make_float3(0.0f, 0.0f, 0.0f);
-        simd_float3 throughPut = simd_make_float3(1.0f, 1.0f, 1.0f);
-        float pdf = 1.0f;
+    simd_float3 sumOfPaths = simd_make_float3(0.0f, 0.0f, 0.0f);
+    simd_float3 throughPut = simd_make_float3(1.0f, 1.0f, 1.0f);
+    float pdf = 1.0f;
 
-        Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
-        for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
-            const Intersection intersection = intersectionModel(model, ray);
-            if (isHit(intersection)) {
-                // Hit geometry (continue tracing)
-                ray.pos = intersection.pos + 0.01 * intersection.normal;
-                seed = goldenSequence(seed);
-                ray.dir = simd_normalize(cosineDirection(seed, intersection.normal));
+    Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
+    for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
+        const Intersection intersection = intersectionModel(model, ray);
+        if (isHit(intersection)) {
+            // Hit geometry (continue tracing)
+            ray.pos = intersection.pos + 0.01 * intersection.normal;
+            seed = goldenSequence(seed);
+            ray.dir = simd_normalize(cosineDirection(seed, intersection.normal));
 
-                // Increment the ray (assuming that no geometry is emissive)
-                const float pi_inverse = 1.0f / 3.14159f;
-                const float brdf = 0.95f * pi_inverse;
-                const float geometry = simd_dot(ray.dir, intersection.normal);
-                pdf *= pi_inverse;
-                throughPut *= brdf * geometry;
-            } else {
-                // Hit the skybox (uniform radiance)
-                const float ibl = 2.0f * fmax(0.0f, ray.dir.y);
-                sumOfPaths += throughPut * ibl;
-                break;
-            }
+            // Increment the ray (assuming that no geometry is emissive)
+            const float pi_inverse = 1.0f / 3.14159f;
+            const float brdf = 0.95f * pi_inverse;
+            const float geometry = simd_dot(ray.dir, intersection.normal);
+            pdf *= pi_inverse;
+            throughPut *= brdf * geometry;
+        } else {
+            // Hit the skybox (uniform radiance)
+            const float ibl = 2.0f * fmax(0.0f, ray.dir.y);
+            sumOfPaths += throughPut * ibl / pdf;
+            break;
         }
-        const simd_float3 estimate = sumOfPaths / pdf;
-        result *= ((float) iteration) / (iteration + 1);
-        result += estimate / (iteration + 1);
     }
 
-    return simd_make_float4(result, 1.0f);
+    simd_float3 result = (*radiance).xyz;
+    result *= ((float) sampleCount) / (sampleCount + 1);
+    result += sumOfPaths / (sampleCount + 1);
+    *radiance = simd_make_float4(result, 1.0f);
 }
 
 // Tracing: external
@@ -787,7 +790,9 @@ simd_float4 pathTraceKernel(simd_int2 threadID, float seed, Model model, simd_in
 typedef struct KernelArgs {
     float seed;
     Model model;
+    simd_float4 *radiance;
     simd_uchar4 *pixels;
+    int sampleCount;
     simd_int2 res;
     simd_int2 start;
     simd_int2 end;
@@ -796,11 +801,13 @@ typedef struct KernelArgs {
     simd_float3 up;
 } KernelArgs;
 
-void *calculateRadianceSubImage(void *arguments) {
+void *addRadianceSampleSubImage(void *arguments) {
     const KernelArgs args = *(KernelArgs *) arguments;
     float seed = args.seed;
     Model model = args.model;
+    simd_float4 *radiance = args.radiance;
     simd_uchar4 *pixels = args.pixels;
+    int sampleCount = args.sampleCount;
     simd_int2 res = args.res;
     simd_int2 start = args.start;
     simd_int2 end = args.end;
@@ -812,24 +819,29 @@ void *calculateRadianceSubImage(void *arguments) {
     for (int y = start.y; y < end.y; y++) {
         for (int x = start.x; x < end.x; x++) {
             simd_int2 threadID = simd_make_int2(x, y);
+            int pixelIndex = (res.y - y - 1) * res.x + x;
             runningSeed = sqrt2Sequence(runningSeed);
-            simd_float4 floatValue = pathTraceKernel(threadID, runningSeed, model, res, eye, lookAt, up);
-            simd_float4 clampedValue = simd_clamp(floatValue, 0.0, 1.0);
+            pathTraceKernel(threadID, runningSeed,
+                            &radiance[pixelIndex], sampleCount,
+                            model, res, eye, lookAt, up);
+
+            simd_float4 clampedValue = simd_clamp(radiance[pixelIndex], 0.0, 1.0);
             simd_uchar4 charValue = simd_make_uchar4(clampedValue.x * 255,
                                                      clampedValue.y * 255,
                                                      clampedValue.z * 255,
                                                      clampedValue.w * 255);
-            pixels[(res.y - y - 1) * res.x + x] = charValue;
+            pixels[pixelIndex] = charValue;
         }
     }
     return NULL;
 }
 
-void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
+void addRadianceSample(Model model, unsigned int seed, int sampleCount,
+                       simd_float4 *radiance, simd_uchar4 *pixels, simd_int2 res,
                        simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
-    srand(0xdeadbeef);
+    srand(seed);
     // Divide the image into a number of threads
-    const int numThreads = 8;
+    const int numThreads = 16;
 
     pthread_t threads[numThreads];
     KernelArgs args[numThreads];
@@ -837,9 +849,11 @@ void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
     for (int i = 0; i < numThreads; i++) {
         args[i].seed = (float) rand() / (float)(RAND_MAX);
         args[i].model = model;
+        args[i].radiance = radiance;
         args[i].pixels = pixels;
+        args[i].sampleCount = sampleCount;
         args[i].res = res;
-        args[i].start = simd_make_int2(0, (res.y * i) / 8);
+        args[i].start = simd_make_int2(0, (res.y * i) / numThreads);
         args[i].end = simd_make_int2(res.x, min(res.y, (res.y * (i + 1)) / numThreads));
         args[i].eye = eye;
         args[i].lookAt = lookAt;
@@ -847,7 +861,7 @@ void calculateRadiance(Model model, simd_uchar4 *pixels, simd_int2 res,
     }
 
     for (int i = 0; i < numThreads; i++) {
-        pthread_create(&threads[i], NULL, calculateRadianceSubImage, (void *)&args[i]);
+        pthread_create(&threads[i], NULL, addRadianceSampleSubImage, (void *)&args[i]);
     }
 
     for (int i = 0; i < numThreads; i++) {

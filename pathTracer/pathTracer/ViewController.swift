@@ -5,6 +5,10 @@ import simd
 class ViewController: NSViewController {
     var pathTracer = PathTracer()
 
+    @IBAction func recomputeButton(_ sender: NSButton) {
+        pathTracer.calculateSamples(numSamples: 4)
+    }
+
     @IBAction func loadObjButton(_ sender: NSButton) {
         let filePicker = NSOpenPanel()
         filePicker.allowsMultipleSelection = false
@@ -15,7 +19,7 @@ class ViewController: NSViewController {
         filePicker.runModal()
         if let chosenFile = filePicker.url {
             pathTracer.setModelCentered(model: loadModel(file: chosenFile.absoluteString))
-            pathTracer.calculate1Sample()
+            pathTracer.calculateSamples(numSamples: 1)
         }
     }
 
@@ -42,6 +46,7 @@ extension ViewController: PathTracerProtocol {
         if let cgImage = cgImage {
             let imageSize = NSSize(width: cgImage.width, height: cgImage.height)
             imageView.image = NSImage(cgImage: cgImage, size: imageSize)
+            imageView.needsDisplay = true
         }
     }
 }
