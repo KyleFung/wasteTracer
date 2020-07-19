@@ -2,9 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:/Users/kylefung/kdTree/pathTracerCore/PathTracerCore.xcodeproj">
+      location = "group:PathTracer/PathTracer.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:/Users/kylefung/kdTree/pathTracer/PathTracer.xcodeproj">
+      location = "group:/Users/kylefung/kdTree/pathTracerCore/PathTracerCore.xcodeproj">
    </FileRef>
 </Workspace>
