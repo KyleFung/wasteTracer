@@ -11,6 +11,27 @@ class ViewController: NSViewController {
         queue.addOperation(operation)
     }
 
+    @IBAction func exportPngButton(_ sender: NSButton) {
+        if let image = imageView.image {
+            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+
+            if let cgImage = cgImage {
+                let filePicker = NSSavePanel()
+                filePicker.showsHiddenFiles = false
+                filePicker.canCreateDirectories = true
+                filePicker.allowedFileTypes = ["png"]
+                filePicker.runModal()
+
+                if let chosenFile = filePicker.url {
+                    guard let destination = CGImageDestinationCreateWithURL(chosenFile as CFURL,
+                                                                            kUTTypePNG, 1, nil) else { return }
+                    CGImageDestinationAddImage(destination, cgImage, nil)
+                    CGImageDestinationFinalize(destination)
+                }
+            }
+        }
+    }
+
     @IBAction func loadObjButton(_ sender: NSButton) {
         let filePicker = NSOpenPanel()
         filePicker.allowsMultipleSelection = false
