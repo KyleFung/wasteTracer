@@ -72,7 +72,7 @@ typedef struct Transform {
 
 typedef struct KDSplitNode {
     float split;
-    unsigned int left;
+    // Left offset will always implicitly be 1.
     unsigned int right;
 } KDSplitNode;
 

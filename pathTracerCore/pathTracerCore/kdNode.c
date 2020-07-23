@@ -305,8 +305,8 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
 
         // Decide if the ray r is on the left or the right side of the partition.
         bool leftSide = r.pos[root.type] < split.split;
-        const KDNode *firstNode  = nodes + (leftSide ? split.left : split.right);
-        const KDNode *secondNode = nodes + (leftSide ? split.right : split.left);
+        const KDNode *firstNode  = nodes + (leftSide ? 1 : split.right);
+        const KDNode *secondNode = nodes + (leftSide ? split.right : 1);
 
         Intersection firstIntersection = intersectionTree(firstNode, leaves, faces, vertices, r);
         if (isHit(firstIntersection) && inBox(firstIntersection.pos, firstNode->aabb)) {
@@ -793,7 +793,6 @@ void partitionSerialKD(const AABB aabb,
     KDNode splitNode;
     splitNode.type = split.splitAxis;
     splitNode.aabb = aabb;
-    splitNode.split.left = 1;
     splitNode.split.right = 1 + leftResult.count;
     splitNode.split.split = split.splitPos;
 
