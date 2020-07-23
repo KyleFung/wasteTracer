@@ -230,17 +230,16 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
 
     while (stack.stackPointer > 0) {
         const KDNode currentNode = nodes[stack.nodeStack[stack.stackPointer]];
+        if (!intersectsBox(currentNode.aabb, r)) {
+            // Back up
+            backUpTraversal(&stack, nodes);
+            continue;
+        }
+
         // Split node
         if (currentNode.type <= 2) {
-            // Check if we even hit the current node
-            const KDSplitNode split = currentNode.split;
-            if (!intersectsBox(split.aabb, r)) {
-                // Back up
-                backUpTraversal(&stack, nodes);
-            } else {
-                // Explore the left side
-                traverseToLeft(&stack);
-            }
+            // Explore the left side
+            traverseToLeft(&stack);
         } else {
             const KDLeafNode leaf = currentNode.leaf;
             const unsigned int leafCount = currentNode.type >> 2;
@@ -276,12 +275,13 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
 Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
                               const Triangle *faces, const Vertex *vertices, Ray r) {
     const KDNode root = nodes[0];
+    if (!intersectsBox(root.aabb, r)) {
+        return missedIntersection();
+    }
+
     // Split node
     if (root.type <= 2) {
         const KDSplitNode split = root.split;
-        if (!intersectsBox(split.aabb, r)) {
-            return missedIntersection();
-        }
 
         Intersection lIntersection = intersectionTree(nodes + split.left,  leaves, faces, vertices, r);
         Intersection rIntersection = intersectionTree(nodes + split.right, leaves, faces, vertices, r);
@@ -704,6 +704,7 @@ void partitionSerialKD(const AABB aabb,
         *nodes = initByteArray("KDNode", 1, sizeof(KDNode));
         KDNode *leaf = getNodeFromArray(*nodes, 0);
         leaf->type = (faceCount << 2) | 3;
+        leaf->aabb = aabb;
         leaf->leaf.dynamicListStart = leaves->count;
         int staticFaceCount = min(faceCount, MAX_STATIC_FACES);
         int dynamicFaceCount = max(0, faceCount - staticFaceCount);
@@ -766,7 +767,7 @@ void partitionSerialKD(const AABB aabb,
 
     KDNode splitNode;
     splitNode.type = split.splitAxis;
-    splitNode.split.aabb = aabb;
+    splitNode.aabb = aabb;
     splitNode.split.left = 1;
     splitNode.split.right = 1 + leftResult.count;
     splitNode.split.split = split.splitPos;

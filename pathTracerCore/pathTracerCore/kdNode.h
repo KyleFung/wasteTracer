@@ -70,16 +70,14 @@ typedef struct Transform {
     simd_float3 translation;
 } Transform;
 
-struct KDNode;
-
 typedef struct KDSplitNode {
-    AABB aabb;
     float split;
     unsigned int left;
     unsigned int right;
 } KDSplitNode;
 
-#define MAX_STATIC_FACES (uint32_t)(sizeof(KDSplitNode) / sizeof(unsigned int) - 1)
+#define MAX_STATIC_FACES ((uint32_t)(sizeof(KDSplitNode) / sizeof(unsigned int) - 1))
+
 typedef struct KDLeafNode {
     unsigned int staticList[MAX_STATIC_FACES];
     unsigned int dynamicListStart;
@@ -89,6 +87,7 @@ typedef struct KDNode {
     // First 2 bits encode node type (0 = x, 1 = y, 2 = z, 3 = triangle list).
     // Last 30 bits encode triangle count if triangle list.
     int type;
+    AABB aabb;
 
     union {
         KDSplitNode split;
