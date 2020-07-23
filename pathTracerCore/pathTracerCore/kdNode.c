@@ -90,6 +90,10 @@ bool intersectsBox(AABB b, Ray r) {
     return isfinite(intersection) && intersection > 0.0;
 }
 
+bool inBox(simd_float3 p, const AABB box) {
+    return simd_all(p < box.max && p > box.min);
+}
+
 Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
     Intersection intersection = { distance, normal, pos };
     return intersection;
@@ -283,9 +287,18 @@ Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
     if (root.type <= 2) {
         const KDSplitNode split = root.split;
 
-        Intersection lIntersection = intersectionTree(nodes + split.left,  leaves, faces, vertices, r);
-        Intersection rIntersection = intersectionTree(nodes + split.right, leaves, faces, vertices, r);
-        return closestIntersection(lIntersection, rIntersection);
+        // Decide if the ray r is on the left or the right side of the partition.
+        bool leftSide = r.pos[root.type] < split.split;
+        const KDNode *firstNode  = nodes + (leftSide ? split.left : split.right);
+        const KDNode *secondNode = nodes + (leftSide ? split.right : split.left);
+
+        Intersection firstIntersection = intersectionTree(firstNode, leaves, faces, vertices, r);
+        if (isHit(firstIntersection) && inBox(firstIntersection.pos, firstNode->aabb)) {
+            return firstIntersection;
+        } else {
+            Intersection secondIntersection = intersectionTree(secondNode, leaves, faces, vertices, r);
+            return closestIntersection(firstIntersection, secondIntersection);
+        }
     } else {
         const KDLeafNode leaf = root.leaf;
         const unsigned int leafCount = root.type >> 2;
@@ -364,10 +377,6 @@ float surfaceArea(const AABB box) {
 AABB emptyBox() {
     AABB box = { simd_make_float3(-INFINITY), simd_make_float3(INFINITY) };
     return box;
-}
-
-bool inBox(simd_float3 p, const AABB box) {
-    return simd_all(p < box.max && p > box.min);
 }
 
 AABB commonBox(const AABB a, const AABB b) {
