@@ -177,23 +177,34 @@ bool getBit(unsigned int x, short n) {
 typedef struct TraversalStack {
     unsigned int nodeStack[32];
     unsigned int traversedPath;
+    unsigned int leftCloser;
     short stackPointer;
 } TraversalStack;
 
-TraversalStack emptyStack() {
+TraversalStack initStack(KDNode rootNode, Ray r) {
     TraversalStack stack;
     for (int i = 0; i < 32; i++) {
         stack.nodeStack[i] = -1;
     }
+
+    stack.leftCloser = 0;
+    bool leftCloser = r.pos[rootNode.type] < rootNode.split.split;
+    setBit(&stack.leftCloser, stack.stackPointer, leftCloser);
+
+    stack.nodeStack[0] = 0;
+    stack.nodeStack[1] = 0;
+    stack.stackPointer = 1;
     stack.traversedPath = 0;
-    stack.stackPointer = 0;
+
     return stack;
 }
 
-void backUpTraversal(TraversalStack *stack, const KDNode *nodes) {
+void backUpTraversal(TraversalStack *stack, const KDNode *nodes, Intersection topResult) {
     // Back up stack until we find a 0 or hit the bottom
     while (stack->stackPointer > 0 &&
-           getBit(stack->traversedPath, stack->stackPointer)) {
+           (getBit(stack->traversedPath, stack->stackPointer) ||
+            (isHit(topResult) &&
+             inBox(topResult.pos, nodes[stack->nodeStack[stack->stackPointer]].aabb)))) {
         stack->stackPointer -= 1;
     }
 
@@ -204,49 +215,52 @@ void backUpTraversal(TraversalStack *stack, const KDNode *nodes) {
 
     // Assume the top bit is 0
     assert(getBit(stack->traversedPath, stack->stackPointer) == false);
-    // Get the index of the right sibling of this left node
+    // Get the index of the far sibling of this closer node
+    bool leftCloser = getBit(stack->leftCloser, stack->stackPointer);
     unsigned int parentIndex = stack->nodeStack[stack->stackPointer - 1];
     const KDNode *parent = &nodes[parentIndex];
     assert(parent->type <= 2);
-    stack->nodeStack[stack->stackPointer] = parent->split.right + parentIndex;
+    stack->nodeStack[stack->stackPointer] = parentIndex + (leftCloser ? parent->split.right : 1);
     // Replace the top 0 with a 1
     setBit(&stack->traversedPath, stack->stackPointer, true);
 }
 
-void traverseToLeft(TraversalStack *stack) {
-    // Push a left fork (left child and 0) onto the stack
+void traverseToCloser(TraversalStack *stack, const KDNode *nodes, Ray r) {
+    // Take a fork to the closer child and push that onto the stack
     stack->stackPointer += 1;
     assert(stack->stackPointer < 32);
 
-    stack->nodeStack[stack->stackPointer] = stack->nodeStack[stack->stackPointer - 1] + 1;
+    const KDNode *parent = &nodes[stack->nodeStack[stack->stackPointer - 1]];
+    bool leftCloser = r.pos[parent->type] < parent->split.split;
+    setBit(&stack->leftCloser, stack->stackPointer, leftCloser);
+
+    stack->nodeStack[stack->stackPointer] = stack->nodeStack[stack->stackPointer - 1] +
+                                            (leftCloser ? 1 : parent->split.right);
     setBit(&stack->traversedPath, stack->stackPointer, false);
 }
 
 Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *leaves,
                                      const Triangle *faces, const Vertex *vertices, Ray r) {
     Intersection closest = missedIntersection();
-
-    TraversalStack stack = emptyStack();
-    stack.nodeStack[0] = 0;
-    stack.nodeStack[1] = nodes->split.left;
-    stack.stackPointer = 1;
-    stack.traversedPath = 0;
+    TraversalStack stack = initStack(nodes[0], r);
 
     while (stack.stackPointer > 0) {
         const KDNode currentNode = nodes[stack.nodeStack[stack.stackPointer]];
         if (!intersectsBox(currentNode.aabb, r)) {
             // Back up
-            backUpTraversal(&stack, nodes);
+            backUpTraversal(&stack, nodes, missedIntersection());
             continue;
         }
 
         // Split node
         if (currentNode.type <= 2) {
-            // Explore the left side
-            traverseToLeft(&stack);
+            // Explore the closer side
+            traverseToCloser(&stack, nodes, r);
         } else {
             const KDLeafNode leaf = currentNode.leaf;
             const unsigned int leafCount = currentNode.type >> 2;
+
+            Intersection leafIntersection = missedIntersection();
 
             const unsigned int staticLeafCount = min(leafCount, MAX_STATIC_FACES);
             for (int i = 0; i < staticLeafCount; i++) {
@@ -255,7 +269,7 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
                 ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
                 Intersection triIntersect = intersectionTriangle(t, r);
-                closest = closestIntersection(closest, triIntersect);
+                leafIntersection = closestIntersection(leafIntersection, triIntersect);
             }
 
             const unsigned int dynamicLeafCount = max(0, leafCount - staticLeafCount);
@@ -265,11 +279,13 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
                 ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
                 Intersection triIntersect = intersectionTriangle(t, r);
-                closest = closestIntersection(closest, triIntersect);
+                leafIntersection = closestIntersection(leafIntersection, triIntersect);
             }
 
+            closest = closestIntersection(closest, leafIntersection);
+
             // Back up
-            backUpTraversal(&stack, nodes);
+            backUpTraversal(&stack, nodes, leafIntersection);
         }
     }
 
