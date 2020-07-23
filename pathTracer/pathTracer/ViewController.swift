@@ -42,7 +42,15 @@ class ViewController: NSViewController {
         filePicker.runModal()
         if let chosenFile = filePicker.url {
             pathTracer.setModelCentered(model: loadModel(file: chosenFile.absoluteString))
-            pathTracer.calculateSamples(numSamples: 1)
+            var startTime = CFAbsoluteTimeGetCurrent()
+            pathTracer.calculateSamples(numSamples: 1, inPlace: false)
+            var timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+            print("Recursion: ", timeElapsed)
+
+            startTime = CFAbsoluteTimeGetCurrent()
+            pathTracer.calculateSamples(numSamples: 1, inPlace: true)
+            timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+            print("Stackless: ", timeElapsed)
         }
     }
 

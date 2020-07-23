@@ -21,13 +21,13 @@ class PathTracer {
         self.model?.transform.translation = -model.centroid
     }
 
-    func calculateSamples(numSamples: uint32) {
+    func calculateSamples(numSamples: uint32, inPlace: Bool) {
         for _ in 1...numSamples {
             if let model = model {
                 addRadianceSample(model, uint32(Int.random(in: 0...10000)), Int32(numIterations),
                                   UnsafeMutablePointer<simd_float4>(mutating: radiance),
                                   UnsafeMutablePointer<simd_uchar4>(mutating: pixels),
-                                  res, eye, lookAt, up)
+                                  res, eye, lookAt, up, inPlace)
                 numIterations += 1
             }
             if let delegate = delegate {
@@ -53,7 +53,7 @@ class AddRadianceSamples: Operation {
             return
         }
 
-        pathTracer.calculateSamples(numSamples: uint32(sampleCount))
+        pathTracer.calculateSamples(numSamples: uint32(sampleCount), inPlace: true)
     }
 }
 

@@ -156,6 +156,123 @@ ExplicitTriangle makeExplicitFace(const Vertex vertices[],
     return explicitFace;
 }
 
+void setBit(unsigned int* x, short n, bool value) {
+    const unsigned int mask = 1 << n;
+    if (value) {
+        *x = *x | mask;
+    } else {
+        *x = *x & ~mask;
+    }
+}
+
+bool getBit(unsigned int x, short n) {
+    const unsigned int mask = 1 << n;
+    return !!(x & mask);
+}
+
+typedef struct TraversalStack {
+    unsigned int nodeStack[32];
+    unsigned int traversedPath;
+    short stackPointer;
+} TraversalStack;
+
+TraversalStack emptyStack() {
+    TraversalStack stack;
+    for (int i = 0; i < 32; i++) {
+        stack.nodeStack[i] = -1;
+    }
+    stack.traversedPath = 0;
+    stack.stackPointer = 0;
+    return stack;
+}
+
+void backUpTraversal(TraversalStack *stack, const KDNode *nodes) {
+    // Back up stack until we find a 0 or hit the bottom
+    while (stack->stackPointer > 0 &&
+           getBit(stack->traversedPath, stack->stackPointer)) {
+        stack->stackPointer -= 1;
+    }
+
+    // If we hit the bottom, the traversal is over
+    if (stack->stackPointer <= 0) {
+        return;
+    }
+
+    // Assume the top bit is 0
+    assert(getBit(stack->traversedPath, stack->stackPointer) == false);
+    // Get the index of the right sibling of this left node
+    unsigned int parentIndex = stack->nodeStack[stack->stackPointer - 1];
+    const KDNode *parent = &nodes[parentIndex];
+    assert(parent->type <= 2);
+    stack->nodeStack[stack->stackPointer] = parent->split.right + parentIndex;
+    // Replace the top 0 with a 1
+    setBit(&stack->traversedPath, stack->stackPointer, true);
+}
+
+void traverseToLeft(TraversalStack *stack) {
+    // Push a left fork (left child and 0) onto the stack
+    stack->stackPointer += 1;
+    assert(stack->stackPointer < 32);
+
+    stack->nodeStack[stack->stackPointer] = stack->nodeStack[stack->stackPointer - 1] + 1;
+    setBit(&stack->traversedPath, stack->stackPointer, false);
+}
+
+Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *leaves,
+                                     const Triangle *faces, const Vertex *vertices, Ray r) {
+    Intersection closest = missedIntersection();
+
+    TraversalStack stack = emptyStack();
+    stack.nodeStack[0] = 0;
+    stack.nodeStack[1] = nodes->split.left;
+    stack.stackPointer = 1;
+    stack.traversedPath = 0;
+
+    while (stack.stackPointer > 0) {
+        const KDNode currentNode = nodes[stack.nodeStack[stack.stackPointer]];
+        // Split node
+        if (currentNode.type <= 2) {
+            // Check if we even hit the current node
+            const KDSplitNode split = currentNode.split;
+            if (!intersectsBox(split.aabb, r)) {
+                // Back up
+                backUpTraversal(&stack, nodes);
+            } else {
+                // Explore the left side
+                traverseToLeft(&stack);
+            }
+        } else {
+            const KDLeafNode leaf = currentNode.leaf;
+            const unsigned int leafCount = currentNode.type >> 2;
+
+            const unsigned int staticLeafCount = min(leafCount, MAX_STATIC_FACES);
+            for (int i = 0; i < staticLeafCount; i++) {
+                const unsigned int faceIndex = leaf.staticList[i];
+                const Triangle triangle = faces[faceIndex];
+                ExplicitTriangle t = makeExplicitFace(vertices, triangle);
+
+                Intersection triIntersect = intersectionTriangle(t, r);
+                closest = closestIntersection(closest, triIntersect);
+            }
+
+            const unsigned int dynamicLeafCount = max(0, leafCount - staticLeafCount);
+            for (int i = 0; i < dynamicLeafCount; i++) {
+                const unsigned int faceIndex = leaves[leaf.dynamicListStart + i];
+                const Triangle triangle = faces[faceIndex];
+                ExplicitTriangle t = makeExplicitFace(vertices, triangle);
+
+                Intersection triIntersect = intersectionTriangle(t, r);
+                closest = closestIntersection(closest, triIntersect);
+            }
+
+            // Back up
+            backUpTraversal(&stack, nodes);
+        }
+    }
+
+    return closest;
+}
+
 Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
                               const Triangle *faces, const Vertex *vertices, Ray r) {
     const KDNode root = nodes[0];
@@ -207,16 +324,24 @@ Intersection applyTransform(Intersection intersection, Transform transform) {
     return result;
 }
 
-Intersection intersectionModel(Model model, Ray r) {
+Intersection intersectionModel(Model model, Ray r, bool inPlace) {
     // Perform model transform on the model (by inverting the transform on the ray)
     r.pos -= model.transform.translation;
     r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
     r.pos /= model.transform.scale;
     r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
 
-    Intersection modelIntersection = intersectionTree((KDNode *)model.kdNodes.data,
-                                                      (unsigned int *)model.kdLeaves.data,
-                                                      model.faces, model.vertices, r);
+    Intersection modelIntersection;
+
+    if (!inPlace) {
+        modelIntersection = intersectionTree((KDNode *)model.kdNodes.data,
+                                             (unsigned int *)model.kdLeaves.data,
+                                             model.faces, model.vertices, r);
+    } else {
+        modelIntersection = intersectionTreeInPlace((KDNode *)model.kdNodes.data,
+                                                    (unsigned int *)model.kdLeaves.data,
+                                                    model.faces, model.vertices, r);
+    }
 
     if (isHit(modelIntersection)) {
         return applyTransform(modelIntersection, model.transform);
@@ -749,7 +874,7 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
 void pathTraceKernel(simd_int2 threadID, float seed,
                      simd_float4 *radiance /* inout */, int sampleCount,
                      Model model, simd_int2 res,
-                     simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+                     simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace) {
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
 
     simd_float3 sumOfPaths = simd_make_float3(0.0f, 0.0f, 0.0f);
@@ -758,7 +883,7 @@ void pathTraceKernel(simd_int2 threadID, float seed,
 
     Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
     for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
-        const Intersection intersection = intersectionModel(model, ray);
+        const Intersection intersection = intersectionModel(model, ray, inPlace);
         if (isHit(intersection)) {
             // Hit geometry (continue tracing)
             ray.pos = intersection.pos + 0.01 * intersection.normal;
@@ -799,6 +924,7 @@ typedef struct KernelArgs {
     simd_float3 eye;
     simd_float3 lookAt;
     simd_float3 up;
+    bool inPlace;
 } KernelArgs;
 
 void *addRadianceSampleSubImage(void *arguments) {
@@ -814,6 +940,7 @@ void *addRadianceSampleSubImage(void *arguments) {
     simd_float3 eye = args.eye;
     simd_float3 lookAt = args.lookAt;
     simd_float3 up = args.up;
+    bool inPlace = args.inPlace;
 
     float runningSeed = seed;
     for (int y = start.y; y < end.y; y++) {
@@ -823,7 +950,7 @@ void *addRadianceSampleSubImage(void *arguments) {
             runningSeed = sqrt2Sequence(runningSeed);
             pathTraceKernel(threadID, runningSeed,
                             &radiance[pixelIndex], sampleCount,
-                            model, res, eye, lookAt, up);
+                            model, res, eye, lookAt, up, inPlace);
 
             simd_float4 clampedValue = simd_clamp(radiance[pixelIndex], 0.0, 1.0);
             simd_uchar4 charValue = simd_make_uchar4(clampedValue.x * 255,
@@ -838,7 +965,7 @@ void *addRadianceSampleSubImage(void *arguments) {
 
 void addRadianceSample(Model model, unsigned int seed, int sampleCount,
                        simd_float4 *radiance, simd_uchar4 *pixels, simd_int2 res,
-                       simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
+                       simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace) {
     srand(seed);
     // Divide the image into a number of threads
     const int numThreads = 16;
@@ -858,6 +985,7 @@ void addRadianceSample(Model model, unsigned int seed, int sampleCount,
         args[i].eye = eye;
         args[i].lookAt = lookAt;
         args[i].up = up;
+        args[i].inPlace = inPlace;
     }
 
     for (int i = 0; i < numThreads; i++) {

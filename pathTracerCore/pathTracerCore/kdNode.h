@@ -122,7 +122,7 @@ void partitionModel(Model *model);
 // Tracing
 void addRadianceSample(Model model, unsigned int seed, int sampleCount,
                        simd_float4 *radiance, simd_uchar4 *pixels, simd_int2 res,
-                       simd_float3 eye, simd_float3 lookAt, simd_float3 up);
+                       simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace);
 
 // Testing
 void runTests(void);

@@ -22,7 +22,7 @@ var outImage = [simd_uchar4](repeating: simd_uchar4(), count: Int(res.x * res.y)
 addRadianceSample(model, 0xdeadbeef, 0,
                   UnsafeMutablePointer<simd_float4>(mutating: radiance),
                   UnsafeMutablePointer<simd_uchar4>(mutating: outImage),
-                  res, eye, lookAt, up)
+                  res, eye, lookAt, up, true)
 
 let cgImage = imageFromRGBA32Bitmap(pixels: outImage, width: Int(res.x), height: Int(res.y))
 writeCGImage(cgImage!, to: dest)
