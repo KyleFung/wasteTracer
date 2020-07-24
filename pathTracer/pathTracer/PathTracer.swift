@@ -53,7 +53,10 @@ class AddRadianceSamples: Operation {
             return
         }
 
+        let startTime = CFAbsoluteTimeGetCurrent()
         pathTracer.calculateSamples(numSamples: uint32(sampleCount), inPlace: true)
+        let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+        print(sampleCount, "samples took", timeElapsed, "seconds.")
     }
 }
 

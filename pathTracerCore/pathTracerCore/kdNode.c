@@ -184,17 +184,21 @@ typedef struct TraversalStack {
 TraversalStack initStack(KDNode rootNode, Ray r) {
     TraversalStack stack;
     for (int i = 0; i < 32; i++) {
+        // Set up invalid nodes.
         stack.nodeStack[i] = -1;
     }
 
+    // Determine which of the root's children is closer to the ray.
     stack.leftCloser = 0;
+    setBit(&stack.leftCloser, 0, true);
     bool leftCloser = r.pos[rootNode.type] < rootNode.split.split;
-    setBit(&stack.leftCloser, stack.stackPointer, leftCloser);
+    setBit(&stack.leftCloser, 1, leftCloser);
 
+    // Set up traversed path.
     stack.nodeStack[0] = 0;
-    stack.nodeStack[1] = 0;
-    stack.stackPointer = 1;
+    stack.nodeStack[1] = leftCloser ? 1 : rootNode.split.right;
     stack.traversedPath = 0;
+    stack.stackPointer = 1;
 
     return stack;
 }
