@@ -6,7 +6,7 @@ class ViewController: NSViewController {
     var pathTracer = PathTracer()
 
     @IBAction func computeSamplesButton(_ sender: NSButton) {
-        let operation = AddRadianceSamples(pathTracer, sampleCount: 128)
+        let operation = AddRadianceSamples(pathTracer, sampleCount: 64)
         let queue = OperationQueue()
         queue.addOperation(operation)
     }

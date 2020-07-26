@@ -2,10 +2,10 @@ import Foundation
 import PathTracerCore
 
 class PathTracer {
-    static let defaultRes = simd_int2(400, 300)
+    static let defaultRes = simd_int2(800, 600)
 
     // Scene fields
-    let eye = simd_float3(0.0, 0.0, 0.1)
+    let eye = simd_float3(0.0, 0.0, 2.0)
     let lookAt = simd_float3(0.0, 0.0, -1.0)
     let up = simd_float3(0.0, 1.0, 0.0)
     let res = simd_int2(defaultRes.x, defaultRes.y)
