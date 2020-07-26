@@ -14,8 +14,8 @@ class StreamReader  {
         do {
             self.fileHandle = try FileHandle(forReadingFrom: path)
             self.delimData = delimiter.data(using: encoding)!
-        } catch let error as NSError {
-            print(error)
+        } catch _ as NSError {
+            print("Failed to open file", path)
             return nil
         }
 
