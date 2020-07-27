@@ -102,12 +102,46 @@ typedef struct Model {
     uint32_t faceCount;
     uint32_t vertCount;
     uint32_t matCount;
-    Transform transform;
     simd_float3 centroid;
     AABB aabb;
     ByteArray kdNodes;
     ByteArray kdLeaves;
 } Model;
+
+typedef struct ModelRef {
+    uint32_t modelIndex;
+} ModelRef;
+
+typedef struct Box {
+    simd_float3 dimensions;
+} Box;
+
+typedef struct Sphere {
+    float radius;
+} Sphere;
+
+typedef struct Primitive {
+    uint8_t type; // 0 = Model, 1 = Box, 2 = Sphere
+    union {
+        ModelRef modelRef;
+        Box box;
+        Sphere sphere;
+    };
+} Primitive;
+
+typedef struct Instance {
+    AABB aabb; // AABB of the transformed AABB
+    Transform transform;
+    Primitive primitive;
+} Instance;
+
+typedef struct Scene {
+    AABB aabb;
+    Model *models;
+    uint32_t modelCount;
+    Instance *instances;
+    uint32_t instanceCount;
+} Scene;
 
 typedef struct Intersection {
     float distance; // NaN <=> miss
@@ -115,11 +149,14 @@ typedef struct Intersection {
     simd_float3 pos;
 } Intersection;
 
+// Build scene
+Scene buildBasicScene(Model model);
+
 // Partitioning
 void partitionModel(Model *model);
 
 // Tracing
-void addRadianceSample(Model model, unsigned int seed, int sampleCount,
+void addRadianceSample(Scene scene, unsigned int seed, int sampleCount,
                        simd_float4 *radiance, simd_uchar4 *pixels, simd_int2 res,
                        simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace);
 

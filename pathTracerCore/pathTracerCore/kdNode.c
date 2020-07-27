@@ -64,7 +64,7 @@ void resizeByteArray(ByteArray *byteArray, unsigned int newCount) {
 
 // Intersection
 
-float intersectionBox(AABB b, Ray r) {
+float intersectionAABB(AABB b, Ray r) {
     double tmin = -INFINITY, tmax = INFINITY;
 
     for (int i = 0; i < 3; ++i) {
@@ -85,8 +85,13 @@ float intersectionBox(AABB b, Ray r) {
     return INFINITY;
 }
 
-bool intersectsBox(AABB b, Ray r) {
-    float intersection = intersectionBox(b, r);
+float boxSDF(simd_float3 pos, simd_float3 boxDim) {
+    simd_float3 q = simd_abs(pos) - boxDim;
+    return simd_length(simd_max(q, 0.0)) + fmin(fmax(q.x, fmax(q.y,q.z)), 0.0);
+}
+
+bool intersectsAABB(AABB b, Ray r) {
+    float intersection = intersectionAABB(b, r);
     return isfinite(intersection) && intersection > 0.0;
 }
 
@@ -116,6 +121,26 @@ Intersection closestIntersection(Intersection a, Intersection b) {
         return a;
     } else {
         return b;
+    }
+}
+
+Intersection intersectionBox(Box b, Ray r) {
+    AABB aabb;
+    aabb.min = -b.dimensions * 0.5f;
+    aabb.max =  b.dimensions * 0.5f;
+
+    float t = intersectionAABB(aabb, r);
+    if (isfinite(t)) {
+        simd_float3 pos = r.pos + t * r.dir;
+        float d = boxSDF(pos, b.dimensions);
+        simd_float3 eps = simd_make_float3(0.0000001f, 0.0f, 0.0f);
+        simd_float3 dev = simd_make_float3(boxSDF(pos + eps.xyz, b.dimensions),
+                                           boxSDF(pos + eps.yxz, b.dimensions),
+                                           boxSDF(pos + eps.zyx, b.dimensions));
+        simd_float3 normal = simd_normalize(dev - d);
+        return makeIntersection(t, normal, pos);
+    } else {
+        return missedIntersection();
     }
 }
 
@@ -250,7 +275,7 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
 
     while (stack.stackPointer > 0) {
         const KDNode currentNode = nodes[stack.nodeStack[stack.stackPointer]];
-        if (!intersectsBox(currentNode.aabb, r)) {
+        if (!intersectsAABB(currentNode.aabb, r)) {
             // Back up
             backUpTraversal(&stack, nodes, missedIntersection());
             continue;
@@ -299,7 +324,7 @@ Intersection intersectionTreeInPlace(const KDNode *nodes, const unsigned int *le
 Intersection intersectionTree(const KDNode *nodes, const unsigned int *leaves,
                               const Triangle *faces, const Vertex *vertices, Ray r) {
     const KDNode root = nodes[0];
-    if (!intersectsBox(root.aabb, r)) {
+    if (!intersectsAABB(root.aabb, r)) {
         return missedIntersection();
     }
 
@@ -358,12 +383,6 @@ Intersection applyTransform(Intersection intersection, Transform transform) {
 }
 
 Intersection intersectionModel(Model model, Ray r, bool inPlace) {
-    // Perform model transform on the model (by inverting the transform on the ray)
-    r.pos -= model.transform.translation;
-    r.pos = simd_mul(r.pos, simd_transpose(model.transform.rotation));
-    r.pos /= model.transform.scale;
-    r.dir = simd_mul(r.dir, simd_transpose(model.transform.rotation));
-
     Intersection modelIntersection;
 
     if (!inPlace) {
@@ -376,11 +395,61 @@ Intersection intersectionModel(Model model, Ray r, bool inPlace) {
                                                     model.faces, model.vertices, r);
     }
 
-    if (isHit(modelIntersection)) {
-        return applyTransform(modelIntersection, model.transform);
+    return modelIntersection;
+}
+
+Intersection intersectionInstance(Instance instance, Model *modelArray, Ray r, bool inPlace) {
+    simd_float3 oldPos = r.pos;
+
+    // Perform instance inverse transform on the ray
+    r.pos -= instance.transform.translation;
+    r.pos = simd_mul(r.pos, simd_transpose(instance.transform.rotation));
+    r.pos /= instance.transform.scale;
+    r.dir = simd_mul(r.dir, simd_transpose(instance.transform.rotation));
+
+    Intersection intersection = missedIntersection();
+    switch (instance.primitive.type) {
+        case 0: {
+            uint32_t modelIndex = instance.primitive.modelRef.modelIndex;
+            intersection = intersectionModel(modelArray[modelIndex], r, inPlace);
+            break;
+        }
+        case 1: {
+            Box box = instance.primitive.box;
+            intersection = intersectionBox(box, r);
+            break;
+        }
+        default: {
+            intersection = missedIntersection();
+            break;
+        }
     }
 
-    return modelIntersection;
+    if (isHit(intersection)) {
+        intersection = applyTransform(intersection, instance.transform);
+        intersection.distance = simd_length(intersection.pos - oldPos);
+        return intersection;
+    } else {
+        return missedIntersection();
+    }
+}
+
+Intersection intersectionScene(Scene scene, Ray r, bool inPlace) {
+    if (!intersectsAABB(scene.aabb, r)) {
+        return missedIntersection();
+    }
+
+    Intersection closest = missedIntersection();
+    for (int i = 0; i < scene.instanceCount; i++) {
+        if (intersectsAABB(scene.instances[i].aabb, r)) {
+            Intersection instanceIntersection = intersectionInstance(scene.instances[i],
+                                                                     scene.models,
+                                                                     r, inPlace);
+            closest = closestIntersection(closest, instanceIntersection);
+        }
+    }
+
+    return closest;
 }
 
 // Partitioning
@@ -406,7 +475,14 @@ AABB commonBox(const AABB a, const AABB b) {
     return result;
 }
 
-AABB unionBox(simd_float3 p, const AABB box) {
+AABB unionAABB(const AABB a, const AABB b) {
+    AABB result;
+    result.min = simd_min(a.min, b.min);
+    result.max = simd_max(a.max, b.max);
+    return result;
+}
+
+AABB unionPointAndAABB(simd_float3 p, const AABB box) {
     AABB result = box;
     if (isEmpty(box)) {
         result.max = p;
@@ -499,9 +575,9 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
 
     if (numInsideVertices == 3) {
         AABB result = emptyBox();
-        result = unionBox(t.v0, result);
-        result = unionBox(t.v1, result);
-        result = unionBox(t.v2, result);
+        result = unionPointAndAABB(t.v0, result);
+        result = unionPointAndAABB(t.v1, result);
+        result = unionPointAndAABB(t.v2, result);
         return result;
     } else {
         AABB result = emptyBox();
@@ -519,7 +595,7 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
         p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f,  clipBox.min.z)), p);
 
         for (int i = 0; i < p.vertCount; i++) {
-            result = unionBox(p.verts[i], result);
+            result = unionPointAndAABB(p.verts[i], result);
         }
 
         // For numerical stability return intersection of result and input box.
@@ -848,6 +924,94 @@ void partitionModel(Model *model) {
     partitionSerialKDRoot(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
 }
 
+// Scene construction
+
+simd_float3 transformPoint(simd_float3 p, Transform transform) {
+    p *= transform.scale;
+    p = simd_mul(p, transform.rotation);
+    p += transform.translation;
+    return p;
+}
+
+Transform identityTransform() {
+    Transform identity;
+    identity.scale = simd_make_float3(1.0f, 1.0f, 1.0f);
+    identity.rotation = simd_diagonal_matrix(simd_make_float3(1.0f, 1.0f, 1.0f));
+    identity.translation = simd_make_float3(0.0f, 0.0f, 0.0f);
+    return identity;
+}
+
+AABB transformAABB(AABB aabb, Transform transform) {
+    AABB transformed;
+    simd_float3 v[8];
+    v[0] = simd_make_float3(aabb.min.x, aabb.min.y, aabb.min.z);
+    v[1] = simd_make_float3(aabb.min.x, aabb.min.y, aabb.max.z);
+    v[2] = simd_make_float3(aabb.min.x, aabb.max.y, aabb.min.z);
+    v[3] = simd_make_float3(aabb.min.x, aabb.max.y, aabb.max.z);
+    v[4] = simd_make_float3(aabb.max.x, aabb.min.y, aabb.min.z);
+    v[5] = simd_make_float3(aabb.max.x, aabb.min.y, aabb.max.z);
+    v[6] = simd_make_float3(aabb.max.x, aabb.max.y, aabb.min.z);
+    v[7] = simd_make_float3(aabb.max.x, aabb.max.y, aabb.max.z);
+
+    transformed.min = simd_make_float3(INFINITY, INFINITY, INFINITY);
+    transformed.max = simd_make_float3(-INFINITY, -INFINITY, -INFINITY);
+    for (int i = 0; i < 8; i++) {
+        simd_float3 transformedVert = transformPoint(v[i], transform);
+        transformed = unionPointAndAABB(transformedVert, transformed);
+    }
+    return transformed;
+}
+
+Scene buildBasicScene(Model model) {
+    Scene scene;
+
+    AABB planeAABB;
+    planeAABB.min = simd_make_float3(-0.5f, -0.01f, -0.5f);
+    planeAABB.max = simd_make_float3( 0.5f,  0.01f,  0.5f);
+    Box plane;
+    plane.dimensions = planeAABB.max - planeAABB.min;
+    plane.dimensions *= 0.99f;
+
+    Instance floor;
+    floor.primitive.type = 1;
+    floor.primitive.box = plane;
+    floor.transform = identityTransform();
+    floor.aabb = transformAABB(planeAABB, floor.transform);
+
+    Instance wall;
+    wall.primitive.type = 1;
+    wall.primitive.box = plane;
+    wall.transform = identityTransform();
+    wall.transform.rotation = simd_matrix3x3(simd_quaternion(3.1415f * 0.5f,
+                                                             simd_make_float3(1.0f, 0.0f, 0.0f)));
+    wall.transform.translation.z -= 0.5f;
+    wall.transform.translation.y += 0.5f;
+    wall.aabb = transformAABB(planeAABB, wall.transform);
+
+    Instance modelRef;
+    modelRef.primitive.type = 0;
+    modelRef.primitive.modelRef.modelIndex = 0;
+    modelRef.transform = identityTransform();
+    float modelScale = 1.0f / simd_reduce_max(model.aabb.max - model.aabb.min);
+    modelRef.transform.scale *= modelScale;
+    modelRef.transform.translation -= model.centroid;
+    modelRef.transform.translation.y += 0.5 * (model.aabb.max.y - model.aabb.min.y);
+    modelRef.transform.translation.y += 0.05;
+    modelRef.aabb = transformAABB(model.aabb, modelRef.transform);
+
+    scene.aabb = unionAABB(unionAABB(wall.aabb, floor.aabb), modelRef.aabb);
+    scene.instanceCount = 3;
+    scene.instances = malloc(3 * sizeof(Instance));
+    scene.instances[0] = wall;
+    scene.instances[1] = floor;
+    scene.instances[2] = modelRef;
+    scene.modelCount = 1;
+    scene.models = malloc(1 * sizeof(Model));
+    scene.models[0] = model;
+
+    return scene;
+};
+
 // Tracing
 
 Ray primaryRay(simd_float2 uv, simd_float2 res, simd_float3 eye, simd_float3 lookAt, simd_float3 up) {
@@ -902,7 +1066,7 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
 
 void pathTraceKernel(simd_int2 threadID, float seed,
                      simd_float4 *radiance /* inout */, int sampleCount,
-                     Model model, simd_int2 res,
+                     Scene scene, simd_int2 res,
                      simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace) {
     simd_float2 uv = simd_make_float2(threadID.x, threadID.y) / simd_make_float2(res.x, res.y);
 
@@ -912,7 +1076,7 @@ void pathTraceKernel(simd_int2 threadID, float seed,
 
     Ray ray = primaryRay(uv, simd_make_float2(res.x, res.y), eye, lookAt, up);
     for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
-        const Intersection intersection = intersectionModel(model, ray, inPlace);
+        const Intersection intersection = intersectionScene(scene, ray, inPlace);
         if (isHit(intersection)) {
             // Hit geometry (continue tracing)
             ray.pos = intersection.pos + 0.01 * intersection.normal;
@@ -943,7 +1107,7 @@ void pathTraceKernel(simd_int2 threadID, float seed,
 
 typedef struct KernelArgs {
     float seed;
-    Model model;
+    Scene scene;
     simd_float4 *radiance;
     simd_uchar4 *pixels;
     int sampleCount;
@@ -959,7 +1123,7 @@ typedef struct KernelArgs {
 void *addRadianceSampleSubImage(void *arguments) {
     const KernelArgs args = *(KernelArgs *) arguments;
     float seed = args.seed;
-    Model model = args.model;
+    Scene scene = args.scene;
     simd_float4 *radiance = args.radiance;
     simd_uchar4 *pixels = args.pixels;
     int sampleCount = args.sampleCount;
@@ -979,7 +1143,7 @@ void *addRadianceSampleSubImage(void *arguments) {
             runningSeed = sqrt2Sequence(runningSeed);
             pathTraceKernel(threadID, runningSeed,
                             &radiance[pixelIndex], sampleCount,
-                            model, res, eye, lookAt, up, inPlace);
+                            scene, res, eye, lookAt, up, inPlace);
 
             simd_float4 clampedValue = simd_clamp(radiance[pixelIndex], 0.0, 1.0);
             simd_uchar4 charValue = simd_make_uchar4(clampedValue.x * 255,
@@ -992,7 +1156,7 @@ void *addRadianceSampleSubImage(void *arguments) {
     return NULL;
 }
 
-void addRadianceSample(Model model, unsigned int seed, int sampleCount,
+void addRadianceSample(Scene scene, unsigned int seed, int sampleCount,
                        simd_float4 *radiance, simd_uchar4 *pixels, simd_int2 res,
                        simd_float3 eye, simd_float3 lookAt, simd_float3 up, bool inPlace) {
     srand(seed);
@@ -1004,7 +1168,7 @@ void addRadianceSample(Model model, unsigned int seed, int sampleCount,
 
     for (int i = 0; i < numThreads; i++) {
         args[i].seed = (float) rand() / (float)(RAND_MAX);
-        args[i].model = model;
+        args[i].scene = scene;
         args[i].radiance = radiance;
         args[i].pixels = pixels;
         args[i].sampleCount = sampleCount;
