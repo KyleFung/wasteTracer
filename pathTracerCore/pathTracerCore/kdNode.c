@@ -966,8 +966,8 @@ Scene buildBasicScene(Model model) {
     Scene scene;
 
     AABB planeAABB;
-    planeAABB.min = simd_make_float3(-0.5f, -0.01f, -0.5f);
-    planeAABB.max = simd_make_float3( 0.5f,  0.01f,  0.5f);
+    planeAABB.min = simd_make_float3(-2.5f, -0.01f, -2.5f);
+    planeAABB.max = simd_make_float3( 2.5f,  0.01f,  2.5f);
     Box plane;
     plane.dimensions = planeAABB.max - planeAABB.min;
     plane.dimensions *= 0.99f;
@@ -994,9 +994,8 @@ Scene buildBasicScene(Model model) {
     modelRef.transform = identityTransform();
     float modelScale = 1.0f / simd_reduce_max(model.aabb.max - model.aabb.min);
     modelRef.transform.scale *= modelScale;
-    modelRef.transform.translation -= model.centroid;
-    modelRef.transform.translation.y += 0.5 * (model.aabb.max.y - model.aabb.min.y);
-    modelRef.transform.translation.y += 0.05;
+    modelRef.transform.translation -= model.centroid * modelScale;
+    modelRef.transform.translation.y += 0.5 * modelScale * (model.aabb.max.y - model.aabb.min.y);
     modelRef.aabb = transformAABB(model.aabb, modelRef.transform);
 
     scene.aabb = unionAABB(unionAABB(wall.aabb, floor.aabb), modelRef.aabb);

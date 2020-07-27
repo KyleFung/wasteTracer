@@ -5,7 +5,7 @@ class PathTracer {
     static let defaultRes = simd_int2(800, 600)
 
     // Scene fields
-    static let defaultEyePos = simd_float3(0.0, 0.5, 1.75)
+    static let defaultEyePos = simd_float3(0.0, 0.5, 0.85)
     static let defaultLookAt = -simd_float3(0.0, 0.0, 1.0)
     static let defaultUpDir  = simd_cross(simd_float3(1.0, 0.0, 0.0), PathTracer.defaultLookAt)
 
