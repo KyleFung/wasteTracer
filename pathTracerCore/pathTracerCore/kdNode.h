@@ -8,15 +8,10 @@
 #pragma once
 
 #include <simd/simd.h>
-#include <stdbool.h>
 
-typedef struct ByteArray {
-    const char *typeName;
-    char *data;
-    uint32_t size; // in bytes
-    uint32_t elementSize; // in bytes
-    uint32_t count;
-} ByteArray;
+#if !__METAL__
+#include <stdbool.h>
+#endif
 
 typedef struct Triangle {
     uint32_t v[3];
@@ -33,22 +28,6 @@ typedef struct ExplicitTriangle {
     };
 } ExplicitTriangle;
 
-typedef struct Material {
-    char *materialName;
-    simd_float3 diffColor;
-    simd_float3 specColor;
-    float specPower;
-    char *diffMapName;
-    uint32_t diffMapIndex;
-} Material;
-
-typedef struct Texture {
-    char *textureName;
-    uint8_t *data;
-    uint32_t width;
-    uint32_t height;
-} Texture;
-
 typedef struct Vertex {
     simd_float3 pos;
     simd_float2 uv;
@@ -63,6 +42,12 @@ typedef struct AABB {
     simd_float3 max;
     simd_float3 min;
 } AABB;
+
+typedef struct Intersection {
+    float distance; // NaN <=> miss
+    simd_float3 normal;
+    simd_float3 pos;
+} Intersection;
 
 typedef struct Transform {
     simd_float3 scale;
@@ -95,19 +80,6 @@ typedef struct KDNode {
     };
 } KDNode;
 
-typedef struct Model {
-    Triangle *faces;
-    Vertex *vertices;
-    Material *materials;
-    uint32_t faceCount;
-    uint32_t vertCount;
-    uint32_t matCount;
-    simd_float3 centroid;
-    AABB aabb;
-    ByteArray kdNodes;
-    ByteArray kdLeaves;
-} Model;
-
 typedef struct ModelRef {
     uint32_t modelIndex;
 } ModelRef;
@@ -135,6 +107,53 @@ typedef struct Instance {
     Primitive primitive;
 } Instance;
 
+typedef struct ModelGPU {
+    unsigned int faceStart;
+    unsigned int vertexStart;
+    uint32_t faceCount;
+    uint32_t vertCount;
+    simd_float3 centroid;
+    AABB aabb;
+    unsigned int kdNodeStart;
+    unsigned int kdLeafStart;
+} ModelGPU;
+
+typedef struct SceneGPU {
+    AABB aabb;
+    uint32_t modelCount;
+    unsigned int instanceStart;
+    uint32_t instanceCount;
+} SceneGPU;
+
+// CPU only
+#if !__METAL__
+typedef struct Material {
+    char *materialName;
+    simd_float3 diffColor;
+    simd_float3 specColor;
+    float specPower;
+    char *diffMapName;
+    uint32_t diffMapIndex;
+} Material;
+
+typedef struct Texture {
+    char *textureName;
+    uint8_t *data;
+    uint32_t width;
+    uint32_t height;
+} Texture;
+
+typedef struct Model {
+    Triangle *faces;
+    Vertex *vertices;
+    uint32_t faceCount;
+    uint32_t vertCount;
+    simd_float3 centroid;
+    AABB aabb;
+    KDNode *kdNodes;
+    unsigned int *kdLeaves;
+} Model;
+
 typedef struct Scene {
     AABB aabb;
     Model *models;
@@ -142,12 +161,6 @@ typedef struct Scene {
     Instance *instances;
     uint32_t instanceCount;
 } Scene;
-
-typedef struct Intersection {
-    float distance; // NaN <=> miss
-    simd_float3 normal;
-    simd_float3 pos;
-} Intersection;
 
 // Build scene
 Scene buildBasicScene(Model model);
@@ -162,3 +175,4 @@ void addRadianceSample(Scene scene, unsigned int seed, int sampleCount,
 
 // Testing
 void runTests(void);
+#endif

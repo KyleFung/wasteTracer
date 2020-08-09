@@ -31,8 +31,6 @@ public func loadModel(file: String) -> Model {
     let dirPath = fullPath.deletingLastPathComponent().absoluteString
     var vertexCount: Int = 0
     var faceCount: Int = 0
-    var materials: [Material] = []
-    var textures: [Texture] = []
 
     if let aStreamReader = StreamReader(path: fullPath) {
         defer {
@@ -51,7 +49,6 @@ public func loadModel(file: String) -> Model {
             if line.hasPrefix("mtllib") {
                 // Load in a material library
                 let fileName = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")[1]
-                loadMaterials(file: dirPath + fileName, materials: &materials, textures: &textures)
             }
         }
     } else {
@@ -117,19 +114,14 @@ public func loadModel(file: String) -> Model {
     let cVertices = UnsafeMutablePointer<Vertex>.allocate(capacity: vertices.count)
     cVertices.initialize(from: UnsafeMutablePointer<Vertex>(mutating: vertices), count: vertices.count)
 
-    let cMaterials = UnsafeMutablePointer<Material>.allocate(capacity: materials.count)
-    cMaterials.initialize(from: UnsafeMutablePointer<Material>(mutating: materials), count: materials.count)
-
     var model = Model(faces: cFaces,
                       vertices: cVertices,
-                      materials: cMaterials,
                       faceCount: UInt32(faceCount),
                       vertCount: UInt32(vertexCount),
-                      matCount: UInt32(materials.count),
                       centroid: (aabbMax + aabbMin) * 0.5,
                       aabb: AABB(max: aabbMax, min: aabbMin),
-                      kdNodes: ByteArray(),
-                      kdLeaves: ByteArray())
+                      kdNodes: nil,
+                      kdLeaves: nil)
 
     // Create kd tree for this model
     partitionModel(&model)

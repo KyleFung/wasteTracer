@@ -10,6 +10,13 @@ float max(float a, float b) {return a > b ? a : b;}
 float min(float a, float b) {return a < b ? a : b;}
 
 // ByteArray
+typedef struct ByteArray {
+    const char *typeName;
+    char *data;
+    uint32_t size; // in bytes
+    uint32_t elementSize; // in bytes
+    uint32_t count;
+} ByteArray;
 
 Vertex *getVertexFromArray(ByteArray vertices, unsigned int index) {
     assert(strcmp(vertices.typeName, "Vertex") == 0);
@@ -386,12 +393,10 @@ Intersection intersectionModel(Model model, Ray r, bool inPlace) {
     Intersection modelIntersection;
 
     if (!inPlace) {
-        modelIntersection = intersectionTree((KDNode *)model.kdNodes.data,
-                                             (unsigned int *)model.kdLeaves.data,
+        modelIntersection = intersectionTree(model.kdNodes, model.kdLeaves,
                                              model.faces, model.vertices, r);
     } else {
-        modelIntersection = intersectionTreeInPlace((KDNode *)model.kdNodes.data,
-                                                    (unsigned int *)model.kdLeaves.data,
+        modelIntersection = intersectionTreeInPlace(model.kdNodes, model.kdLeaves,
                                                     model.faces, model.vertices, r);
     }
 
@@ -917,11 +922,13 @@ void partitionModel(Model *model) {
     vertices.size = vertices.count * vertices.elementSize;
     vertices.data = (void *) model->vertices;
 
-    // Allocate memory for the first node
-    model->kdNodes = initByteArray("KDNode", 0, sizeof(KDNode));
-    model->kdLeaves = initByteArray("UnsignedInt", 0, sizeof(unsigned int));
+    ByteArray kdNodes = initByteArray("KDNode", 0, sizeof(KDNode));
+    ByteArray kdLeaves = initByteArray("UnsignedInt", 0, sizeof(unsigned int));
 
-    partitionSerialKDRoot(model->aabb, faces, vertices, &model->kdNodes, &model->kdLeaves);
+    partitionSerialKDRoot(model->aabb, faces, vertices, &kdNodes, &kdLeaves);
+
+    model->kdNodes = (KDNode *) kdNodes.data;
+    model->kdLeaves = (unsigned int *) kdLeaves.data;
 }
 
 // Scene construction
