@@ -59,6 +59,32 @@ class ViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         pathTracer.delegate = self
+
+        do {
+            try doGPUStuff()
+        } catch { }
+    }
+
+    func doGPUStuff() throws {
+        let device = MTLCreateSystemDefaultDevice()!
+        let commandQueue = device.makeCommandQueue()!
+        let library = try device.makeLibrary(filepath: "Kernels.metallib")
+
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
+        encoder.setComputePipelineState(try device.makeComputePipelineState(function: library.makeFunction(name: "uvKernel")!))
+
+        let outputDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 800, height: 600, mipmapped: false)
+        let outputTexture = device.makeTexture(descriptor: outputDesc)
+        encoder.setTexture(outputTexture, index: 0)
+
+        let numThreadgroups = MTLSize(width: 800, height: 600, depth: 1)
+        let threadsPerThreadgroup = MTLSize(width: 8, height: 8, depth: 1)
+        encoder.dispatchThreadgroups(numThreadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.endEncoding()
+
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
     }
 
     override var representedObject: Any? {
