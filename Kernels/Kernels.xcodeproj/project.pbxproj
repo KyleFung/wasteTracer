@@ -1,0 +1,155 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2C93D09224E08B1800C1FB77 /* Kernels.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2C93D09124E08B1800C1FB77 /* Kernels.metal */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2C93D09124E08B1800C1FB77 /* Kernels.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Kernels.metal; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2C93D08924E08B1800C1FB77 = {
+			isa = PBXGroup;
+			children = (
+				2C93D09024E08B1800C1FB77 /* Kernels */,
+			);
+			sourceTree = "<group>";
+		};
+		2C93D09024E08B1800C1FB77 /* Kernels */ = {
+			isa = PBXGroup;
+			children = (
+				2C93D09124E08B1800C1FB77 /* Kernels.metal */,
+			);
+			path = Kernels;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2C93D08F24E08B1800C1FB77 /* Kernels */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C93D09524E08B1800C1FB77 /* Build configuration list for PBXNativeTarget "Kernels" */;
+			buildPhases = (
+				2C93D08E24E08B1800C1FB77 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Kernels;
+			productName = Kernels;
+			productType = "com.apple.product-type.metal-library";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2C93D08A24E08B1800C1FB77 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1130;
+				ORGANIZATIONNAME = "Kyle Fung";
+				TargetAttributes = {
+					2C93D08F24E08B1800C1FB77 = {
+						CreatedOnToolsVersion = 11.3.1;
+					};
+				};
+			};
+			buildConfigurationList = 2C93D08D24E08B1800C1FB77 /* Build configuration list for PBXProject "Kernels" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2C93D08924E08B1800C1FB77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2C93D08F24E08B1800C1FB77 /* Kernels */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2C93D08E24E08B1800C1FB77 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C93D09224E08B1800C1FB77 /* Kernels.metal in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2C93D09324E08B1800C1FB77 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2C93D09424E08B1800C1FB77 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		2C93D09624E08B1800C1FB77 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2C93D09724E08B1800C1FB77 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2C93D08D24E08B1800C1FB77 /* Build configuration list for PBXProject "Kernels" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C93D09324E08B1800C1FB77 /* Debug */,
+				2C93D09424E08B1800C1FB77 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C93D09524E08B1800C1FB77 /* Build configuration list for PBXNativeTarget "Kernels" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C93D09624E08B1800C1FB77 /* Debug */,
+				2C93D09724E08B1800C1FB77 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2C93D08A24E08B1800C1FB77 /* Project object */;
+}
