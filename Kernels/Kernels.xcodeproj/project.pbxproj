@@ -11,6 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        83C900581F93E6F9003893A9 /* Kernels.metallib */ = {isa = PBXFileReference; explicitFileType = "archive.metal-library"; includeInIndex = 0; path = Kernels.metallib; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C93D09124E08B1800C1FB77 /* Kernels.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Kernels.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -19,6 +20,7 @@
 			isa = PBXGroup;
 			children = (
 				2C93D09024E08B1800C1FB77 /* Kernels */,
+                83C9004D1F93E6D6003893A9 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
@@ -28,6 +30,14 @@
 				2C93D09124E08B1800C1FB77 /* Kernels.metal */,
 			);
 			path = Kernels;
+			sourceTree = "<group>";
+		};
+		83C9004D1F93E6D6003893A9 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				83C900581F93E6F9003893A9 /* Kernels.metallib */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -45,6 +55,7 @@
 			);
 			name = Kernels;
 			productName = Kernels;
+			productReference = 83C900581F93E6F9003893A9 /* Kernels.metallib */;
 			productType = "com.apple.product-type.metal-library";
 		};
 /* End PBXNativeTarget section */
