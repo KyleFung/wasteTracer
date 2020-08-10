@@ -71,23 +71,35 @@ class ViewController: NSViewController {
 
         let libPath = Bundle.main.privateFrameworksPath! + "/Kernels.metallib"
         let library = try device.makeLibrary(filepath: libPath)
+        let kernel = library.makeFunction(name: "uvKernel")!
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
-        encoder.setComputePipelineState(try device.makeComputePipelineState(function: library.makeFunction(name: "uvKernel")!))
+        let pipelineState = try device.makeComputePipelineState(function: kernel)
+        encoder.setComputePipelineState(pipelineState)
 
         let outputDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 800, height: 600, mipmapped: false)
-        outputDesc.usage = .shaderWrite
+        outputDesc.usage = .unknown
         let outputTexture = device.makeTexture(descriptor: outputDesc)
         encoder.setTexture(outputTexture, index: 0)
 
         let numThreadgroups = MTLSize(width: 800, height: 600, depth: 1)
-        let threadsPerThreadgroup = MTLSize(width: 8, height: 8, depth: 1)
+        let threadsPerThreadgroup = MTLSize(width: 1, height: 1, depth: 1)
         encoder.dispatchThreadgroups(numThreadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
 
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+
+        let context = CIContext()
+        let cImg = CIImage(mtlTexture: outputTexture!, options: nil)!
+        let cgImg = context.createCGImage(cImg, from: cImg.extent)!
+
+        DispatchQueue.main.async {
+            let imageSize = NSSize(width: cgImg.width, height: cgImg.height)
+            self.imageView.image = NSImage(cgImage: cgImg, size: imageSize)
+            self.imageView.needsDisplay = true
+        }
     }
 
     override var representedObject: Any? {
