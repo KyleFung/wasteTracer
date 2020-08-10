@@ -14,6 +14,7 @@
 		2C31AAF924C3B2D7004A4857 /* PathTracerCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C31AAF724C3B2BE004A4857 /* PathTracerCore.framework */; };
 		2C31AAFA24C3B2D7004A4857 /* PathTracerCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2C31AAF724C3B2BE004A4857 /* PathTracerCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2C31AAFD24C3CA21004A4857 /* PathTracer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C31AAFC24C3CA21004A4857 /* PathTracer.swift */; };
+		2CCF015724E0E7ED0050F61D /* Kernels.metallib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2CCF015624E0E7E60050F61D /* Kernels.metallib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,6 +25,13 @@
 			remoteGlobalIDString = 2C31AA6524C373E5004A4857;
 			remoteInfo = PathTracerCore;
 		};
+		2CCF015524E0E7E60050F61D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2CCF015124E0E7E60050F61D /* Kernels.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 83C900581F93E6F9003893A9;
+			remoteInfo = Kernels;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -33,6 +41,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				2CCF015724E0E7ED0050F61D /* Kernels.metallib in Embed Frameworks */,
 				2C31AAFA24C3B2D7004A4857 /* PathTracerCore.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -50,6 +59,7 @@
 		2C31AAEC24C3B281004A4857 /* PathTracer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PathTracer.entitlements; sourceTree = "<group>"; };
 		2C31AAF224C3B2BE004A4857 /* PathTracerCore.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = PathTracerCore.xcodeproj; path = ../pathTracerCore/PathTracerCore.xcodeproj; sourceTree = "<group>"; };
 		2C31AAFC24C3CA21004A4857 /* PathTracer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathTracer.swift; sourceTree = "<group>"; };
+		2CCF015124E0E7E60050F61D /* Kernels.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Kernels.xcodeproj; path = ../Kernels/Kernels.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +77,7 @@
 		2C31AAD624C3B281004A4857 = {
 			isa = PBXGroup;
 			children = (
+				2CCF015124E0E7E60050F61D /* Kernels.xcodeproj */,
 				2C31AAF224C3B2BE004A4857 /* PathTracerCore.xcodeproj */,
 				2C31AAE124C3B281004A4857 /* PathTracer */,
 				2C31AAE024C3B281004A4857 /* Products */,
@@ -109,6 +120,14 @@
 			children = (
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		2CCF015224E0E7E60050F61D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2CCF015624E0E7E60050F61D /* Kernels.metallib */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -160,6 +179,10 @@
 			projectDirPath = "";
 			projectReferences = (
 				{
+					ProductGroup = 2CCF015224E0E7E60050F61D /* Products */;
+					ProjectRef = 2CCF015124E0E7E60050F61D /* Kernels.xcodeproj */;
+				},
+				{
 					ProductGroup = 2C31AAF324C3B2BE004A4857 /* Products */;
 					ProjectRef = 2C31AAF224C3B2BE004A4857 /* PathTracerCore.xcodeproj */;
 				},
@@ -177,6 +200,13 @@
 			fileType = wrapper.framework;
 			path = PathTracerCore.framework;
 			remoteRef = 2C31AAF624C3B2BE004A4857 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		2CCF015624E0E7E60050F61D /* Kernels.metallib */ = {
+			isa = PBXReferenceProxy;
+			fileType = "archive.metal-library";
+			path = Kernels.metallib;
+			remoteRef = 2CCF015524E0E7E60050F61D /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 /* End PBXReferenceProxy section */

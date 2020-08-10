@@ -68,13 +68,16 @@ class ViewController: NSViewController {
     func doGPUStuff() throws {
         let device = MTLCreateSystemDefaultDevice()!
         let commandQueue = device.makeCommandQueue()!
-        let library = try device.makeLibrary(filepath: "Kernels.metallib")
+
+        let libPath = Bundle.main.privateFrameworksPath! + "/Kernels.metallib"
+        let library = try device.makeLibrary(filepath: libPath)
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(try device.makeComputePipelineState(function: library.makeFunction(name: "uvKernel")!))
 
         let outputDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 800, height: 600, mipmapped: false)
+        outputDesc.usage = .shaderWrite
         let outputTexture = device.makeTexture(descriptor: outputDesc)
         encoder.setTexture(outputTexture, index: 0)
 
