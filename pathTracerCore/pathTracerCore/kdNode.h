@@ -107,6 +107,12 @@ typedef struct Instance {
     Primitive primitive;
 } Instance;
 
+struct Camera {
+    simd_float3 pos;
+    simd_float3 lookAt;
+    simd_float3 up;
+};
+
 typedef struct ModelGPU {
     unsigned int faceStart;
     unsigned int vertexStart;
