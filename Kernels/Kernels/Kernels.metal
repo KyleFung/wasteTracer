@@ -371,7 +371,32 @@ Intersection intersectionScene(SceneGPU scene, Ray r,
     return closest;
 }
 
-kernel void intersectionKernel(texture2d<half, access::write> outImage    [[texture(0)]],
+float hash(float seed) {
+    return fract(sin(seed) * 43758.5453);
+}
+
+float goldenSequence(float seed) {
+    return fract(seed + 1.61803398875f);
+}
+
+float sqrt2Sequence(float seed) {
+    return fract(seed + 1.41421356237f);
+}
+
+simd_float3 cosineDirection(float seed, simd_float3 nor) {
+    float3 tc = float3(1.0 + nor.z - nor.xy * nor.xy, -nor.x * nor.y) / (1.0 + nor.z);
+    float3 uu = float3(tc.x, tc.z, -nor.x);
+    float3 vv = float3(tc.z, tc.y, -nor.y);
+
+    float u = fabs(hash(78.233 + seed));
+    float v = fabs(hash(10.873 + seed));
+    float a = 6.283185 * v;
+
+    return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
+}
+
+kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[texture(0)]],
+                               texture2d<half, access::read>  inRadiance  [[texture(1)]],
                                constant SceneGPU&             scene       [[buffer(0)]],
                                constant Instance*             instances   [[buffer(1)]],
                                constant ModelGPU*             models      [[buffer(2)]],
@@ -380,18 +405,51 @@ kernel void intersectionKernel(texture2d<half, access::write> outImage    [[text
                                constant unsigned int*         leaves      [[buffer(5)]],
                                constant Triangle*             faces       [[buffer(6)]],
                                constant Vertex*               vertices    [[buffer(7)]],
+                               constant unsigned int&         numSamples  [[buffer(8)]],
+                               constant unsigned int&         newSamples  [[buffer(9)]],
                                uint2                          gid [[thread_position_in_grid]]) {
-    const uint2 textureSize = {outImage.get_width(), outImage.get_height()};
+    const uint2 textureSize = {outRadiance.get_width(), outRadiance.get_height()};
     float2 uv = static_cast<float2>(gid) / static_cast<float2>(textureSize);
+    Ray cameraRay = primaryRay(uv, float2(textureSize), camera.pos, camera.lookAt, camera.up);
 
-    Ray ray = primaryRay(uv, float2(textureSize), camera.pos, camera.lookAt, camera.up);
+    float3 result = numSamples == 0 ? float3(0) : float3(inRadiance.read(gid).xyz);
 
-    Intersection intersection = intersectionScene(scene, ray,
-                                                  instances, models, nodes, leaves, faces, vertices);
+    for (unsigned int i = 0; i < newSamples; i++) {
+        // Set up for generating a new sample.
+        unsigned int sample = numSamples + i;
+        float seed = fract((sin(dot(uv, float2(12.9898, 78.233))) * (43758.5453123)) + sample * 2.23606798);
 
-    if (isHit(intersection)) {
-        outImage.write(half4(half3(intersection.normal), 1.0h), gid);
-    } else {
-        outImage.write(half4(0.0, 0.0, 0.0, 1.0), gid);
+        float3 sumOfPaths = float3(0.0f, 0.0f, 0.0f);
+        float3 throughPut = float3(1.0f, 1.0f, 1.0f);
+        float pdf = 1.0f;
+
+        Ray ray = cameraRay;
+        for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
+            const Intersection intersection = intersectionScene(scene, ray,
+                                                                instances, models, nodes, leaves, faces, vertices);
+            if (isHit(intersection)) {
+                // Hit geometry (continue tracing)
+                ray.pos = intersection.pos + 0.01 * intersection.normal;
+                seed = goldenSequence(seed);
+                ray.dir = normalize(cosineDirection(seed, intersection.normal));
+
+                // Increment the ray (assuming that no geometry is emissive)
+                const float pi_inverse = 1.0f / 3.14159f;
+                const float brdf = 0.95f * pi_inverse;
+                const float geometry = dot(ray.dir, intersection.normal);
+                pdf *= pi_inverse;
+                throughPut *= brdf * geometry;
+            } else {
+                // Hit the skybox (uniform radiance)
+                const float ibl = 2.0f * max(0.0f, ray.dir.y);
+                sumOfPaths += throughPut * ibl / pdf;
+                break;
+            }
+        }
+
+        result *= ((float) sample) / (sample + 1);
+        result += (sumOfPaths) / (sample + 1);
     }
+
+    outRadiance.write(half4(half3(result), 1.0h), gid);
 }

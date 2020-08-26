@@ -22,7 +22,9 @@ class PathTracer {
     var commandQueue: MTLCommandQueue?
     var commandBuffer: MTLCommandBuffer?
 
-    var radianceTexture: MTLTexture?
+    var radianceState = 0
+    var radianceTexture0: MTLTexture?
+    var radianceTexture1: MTLTexture?
     var sceneBuffer: MTLBuffer?
     var instanceBuffer: MTLBuffer?
     var modelBuffer: MTLBuffer?
@@ -31,9 +33,10 @@ class PathTracer {
     var leafBuffer: MTLBuffer?
     var faceBuffer: MTLBuffer?
     var vertexBuffer: MTLBuffer?
+    var numSamplesBuffer: MTLBuffer?
 
     // Image fields
-    var numIterations = 0
+    var numIterations = UInt32(0)
     var radiance = [simd_float4](repeating: simd_float4(), count: Int(defaultRes.x * defaultRes.y))
     var pixels = [simd_uchar4](repeating: simd_uchar4(), count: Int(defaultRes.x * defaultRes.y))
 
@@ -72,7 +75,16 @@ class PathTracer {
     }
 
     func calculateSamples(numSamples: uint32, inPlace: Bool) {
-        encoder!.setTexture(radianceTexture!, index: 0)
+        if radianceState == 0 {
+            encoder!.setTexture(radianceTexture0!, index: 0)
+            encoder!.setTexture(radianceTexture1!, index: 1)
+            radianceState = 1
+        } else {
+            encoder!.setTexture(radianceTexture1!, index: 0)
+            encoder!.setTexture(radianceTexture0!, index: 1)
+            radianceState = 0
+        }
+
         encoder!.setBuffer(sceneBuffer, offset: 0, index: 0)
         encoder!.setBuffer(instanceBuffer, offset: 0, index: 1)
         encoder!.setBuffer(modelBuffer, offset: 0, index: 2)
@@ -81,6 +93,12 @@ class PathTracer {
         encoder!.setBuffer(leafBuffer, offset: 0, index: 5)
         encoder!.setBuffer(faceBuffer, offset: 0, index: 6)
         encoder!.setBuffer(vertexBuffer, offset: 0, index: 7)
+
+        // Increment number of samples
+        encoder!.setBytes(&numIterations, length: MemoryLayout<UInt32>.stride, index: 8)
+        var mutNumSamples = numSamples
+        encoder!.setBytes(&mutNumSamples, length: MemoryLayout<UInt32>.stride, index: 9)
+        numIterations += numSamples
 
         let numThreadgroups = MTLSize(width: 800, height: 600, depth: 1)
         let threadsPerThreadgroup = MTLSize(width: 8, height: 8, depth: 1)

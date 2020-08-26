@@ -73,13 +73,15 @@ class ViewController: NSViewController {
         let radianceDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
                                                                     width: 800, height: 600, mipmapped: false)
         radianceDesc.usage = .unknown
-        let radianceTexture = device.makeTexture(descriptor: radianceDesc)
+        let radianceTexture0 = device.makeTexture(descriptor: radianceDesc)
+        let radianceTexture1 = device.makeTexture(descriptor: radianceDesc)
 
         // Store these objects for later use
         pathTracer.device = device
         pathTracer.commandQueue = commandQueue
         pathTracer.commandBuffer = commandBuffer
-        pathTracer.radianceTexture = radianceTexture
+        pathTracer.radianceTexture0 = radianceTexture0
+        pathTracer.radianceTexture1 = radianceTexture1
         pathTracer.encoder = encoder
     }
 
@@ -93,7 +95,8 @@ class ViewController: NSViewController {
 extension ViewController: PathTracerProtocol {
     func resultsReady(_ pathTracer: PathTracer) {
         let context = CIContext()
-        let cImg = CIImage(mtlTexture: pathTracer.radianceTexture!, options: nil)!
+        let radianceTexture = pathTracer.radianceState == 1 ? pathTracer.radianceTexture0 : pathTracer.radianceTexture1
+        let cImg = CIImage(mtlTexture: radianceTexture!, options: nil)!
         let cgImg = context.createCGImage(cImg, from: cImg.extent)!
 
         DispatchQueue.main.async {
