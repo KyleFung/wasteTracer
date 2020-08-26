@@ -928,7 +928,9 @@ void partitionModel(Model *model) {
     partitionSerialKDRoot(model->aabb, faces, vertices, &kdNodes, &kdLeaves);
 
     model->kdNodes = (KDNode *) kdNodes.data;
+    model->nodeCount = kdNodes.count;
     model->kdLeaves = (unsigned int *) kdLeaves.data;
+    model->leafCount = kdLeaves.count;
 }
 
 // Scene construction

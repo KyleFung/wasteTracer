@@ -42,15 +42,7 @@ class ViewController: NSViewController {
         filePicker.runModal()
         if let chosenFile = filePicker.url {
             pathTracer.createSceneForModel(path: chosenFile.absoluteString);
-            var startTime = CFAbsoluteTimeGetCurrent()
             pathTracer.calculateSamples(numSamples: 1, inPlace: false)
-            var timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
-            print("Recursion: ", timeElapsed)
-
-            startTime = CFAbsoluteTimeGetCurrent()
-            pathTracer.calculateSamples(numSamples: 1, inPlace: true)
-            timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
-            print("Stackless: ", timeElapsed)
         }
     }
 
@@ -61,45 +53,34 @@ class ViewController: NSViewController {
         pathTracer.delegate = self
 
         do {
-            try doGPUStuff()
+            try setupGPUResources()
         } catch { }
     }
 
-    func doGPUStuff() throws {
+    func setupGPUResources() throws {
         let device = MTLCreateSystemDefaultDevice()!
         let commandQueue = device.makeCommandQueue()!
 
         let libPath = Bundle.main.privateFrameworksPath! + "/Kernels.metallib"
         let library = try device.makeLibrary(filepath: libPath)
-        let kernel = library.makeFunction(name: "uvKernel")!
+        let kernel = library.makeFunction(name: "intersectionKernel")!
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
-        let encoder = commandBuffer.makeComputeCommandEncoder()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()
         let pipelineState = try device.makeComputePipelineState(function: kernel)
-        encoder.setComputePipelineState(pipelineState)
+        encoder!.setComputePipelineState(pipelineState)
 
-        let outputDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 800, height: 600, mipmapped: false)
-        outputDesc.usage = .unknown
-        let outputTexture = device.makeTexture(descriptor: outputDesc)
-        encoder.setTexture(outputTexture, index: 0)
+        let radianceDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
+                                                                    width: 800, height: 600, mipmapped: false)
+        radianceDesc.usage = .unknown
+        let radianceTexture = device.makeTexture(descriptor: radianceDesc)
 
-        let numThreadgroups = MTLSize(width: 800, height: 600, depth: 1)
-        let threadsPerThreadgroup = MTLSize(width: 1, height: 1, depth: 1)
-        encoder.dispatchThreadgroups(numThreadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
-        encoder.endEncoding()
-
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
-
-        let context = CIContext()
-        let cImg = CIImage(mtlTexture: outputTexture!, options: nil)!
-        let cgImg = context.createCGImage(cImg, from: cImg.extent)!
-
-        DispatchQueue.main.async {
-            let imageSize = NSSize(width: cgImg.width, height: cgImg.height)
-            self.imageView.image = NSImage(cgImage: cgImg, size: imageSize)
-            self.imageView.needsDisplay = true
-        }
+        // Store these objects for later use
+        pathTracer.device = device
+        pathTracer.commandQueue = commandQueue
+        pathTracer.commandBuffer = commandBuffer
+        pathTracer.radianceTexture = radianceTexture
+        pathTracer.encoder = encoder
     }
 
     override var representedObject: Any? {
@@ -111,16 +92,14 @@ class ViewController: NSViewController {
 
 extension ViewController: PathTracerProtocol {
     func resultsReady(_ pathTracer: PathTracer) {
-        // Update the image view of this view
-        let cgImage = imageFromRGBA32Bitmap(pixels: pathTracer.pixels,
-                                            width: Int(pathTracer.res.x),
-                                            height: Int(pathTracer.res.y))
-        if let cgImage = cgImage {
-            DispatchQueue.main.async {
-                let imageSize = NSSize(width: cgImage.width, height: cgImage.height)
-                self.imageView.image = NSImage(cgImage: cgImage, size: imageSize)
-                self.imageView.needsDisplay = true
-            }
+        let context = CIContext()
+        let cImg = CIImage(mtlTexture: pathTracer.radianceTexture!, options: nil)!
+        let cgImg = context.createCGImage(cImg, from: cImg.extent)!
+
+        DispatchQueue.main.async {
+            let imageSize = NSSize(width: cgImg.width, height: cgImg.height)
+            self.imageView.image = NSImage(cgImage: cgImg, size: imageSize)
+            self.imageView.needsDisplay = true
         }
     }
 }

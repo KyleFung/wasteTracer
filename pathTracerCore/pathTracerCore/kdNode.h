@@ -157,7 +157,9 @@ typedef struct Model {
     simd_float3 centroid;
     AABB aabb;
     KDNode *kdNodes;
+    unsigned int nodeCount;
     unsigned int *kdLeaves;
+    unsigned int leafCount;
 } Model;
 
 typedef struct Scene {

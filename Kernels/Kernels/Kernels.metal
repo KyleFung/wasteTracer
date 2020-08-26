@@ -390,7 +390,7 @@ kernel void intersectionKernel(texture2d<half, access::write> outImage    [[text
                                                   instances, models, nodes, leaves, faces, vertices);
 
     if (isHit(intersection)) {
-        outImage.write(half4(1.0, 1.0, 1.0, 1.0), gid);
+        outImage.write(half4(half3(intersection.normal), 1.0h), gid);
     } else {
         outImage.write(half4(0.0, 0.0, 0.0, 1.0), gid);
     }

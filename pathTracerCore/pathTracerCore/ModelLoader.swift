@@ -121,7 +121,9 @@ public func loadModel(file: String) -> Model {
                       centroid: (aabbMax + aabbMin) * 0.5,
                       aabb: AABB(max: aabbMax, min: aabbMin),
                       kdNodes: nil,
-                      kdLeaves: nil)
+                      nodeCount: 0,
+                      kdLeaves: nil,
+                      leafCount: 0)
 
     // Create kd tree for this model
     partitionModel(&model)
