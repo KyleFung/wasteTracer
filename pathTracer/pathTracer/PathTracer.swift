@@ -17,10 +17,9 @@ class PathTracer {
     var scene: Scene?
     var model: Model? // So scene doesn't have a dangling ref to model
 
-    var encoder: MTLComputeCommandEncoder?
     var device: MTLDevice?
+    var pipelineState: MTLComputePipelineState?
     var commandQueue: MTLCommandQueue?
-    var commandBuffer: MTLCommandBuffer?
 
     var radianceState = 0
     var radianceTexture0: MTLTexture?
@@ -74,7 +73,11 @@ class PathTracer {
         }
     }
 
-    func calculateSamples(numSamples: uint32, inPlace: Bool) {
+    func kickOffSamples(numSamples: uint32) {
+        let commandBuffer = commandQueue!.makeCommandBuffer()
+        let encoder = commandBuffer!.makeComputeCommandEncoder()
+        encoder!.setComputePipelineState(pipelineState!)
+
         if radianceState == 0 {
             encoder!.setTexture(radianceTexture0!, index: 0)
             encoder!.setTexture(radianceTexture1!, index: 1)
@@ -105,14 +108,24 @@ class PathTracer {
         encoder!.dispatchThreadgroups(numThreadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder!.endEncoding()
 
-        let startTime = CFAbsoluteTimeGetCurrent()
         commandBuffer!.commit()
         commandBuffer!.waitUntilCompleted()
-        let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
-        print("Pipeline execution: ", timeElapsed)
 
         if let delegate = delegate {
             delegate.resultsReady(self)
+        }
+    }
+
+    func calculateSamples(numSamples: uint32, inPlace: Bool) {
+        let numFullBatches = numSamples / 8
+        if numFullBatches > 0 {
+            for _ in 1...numFullBatches {
+                kickOffSamples(numSamples: 8)
+            }
+        }
+        let remainder = numSamples % 8
+        if remainder != 0 {
+            kickOffSamples(numSamples: remainder)
         }
     }
 

@@ -69,6 +69,7 @@ class ViewController: NSViewController {
         let encoder = commandBuffer.makeComputeCommandEncoder()
         let pipelineState = try device.makeComputePipelineState(function: kernel)
         encoder!.setComputePipelineState(pipelineState)
+        encoder!.endEncoding()
 
         let radianceDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float,
                                                                     width: 800, height: 600, mipmapped: false)
@@ -79,10 +80,9 @@ class ViewController: NSViewController {
         // Store these objects for later use
         pathTracer.device = device
         pathTracer.commandQueue = commandQueue
-        pathTracer.commandBuffer = commandBuffer
         pathTracer.radianceTexture0 = radianceTexture0
         pathTracer.radianceTexture1 = radianceTexture1
-        pathTracer.encoder = encoder
+        pathTracer.pipelineState = pipelineState
     }
 
     override var representedObject: Any? {
