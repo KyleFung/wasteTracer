@@ -117,13 +117,14 @@ class PathTracer {
     }
 
     func calculateSamples(numSamples: uint32, inPlace: Bool) {
-        let numFullBatches = numSamples / 8
+        let samplesPerBatch = uint32(1)
+        let numFullBatches = numSamples / samplesPerBatch
         if numFullBatches > 0 {
             for _ in 1...numFullBatches {
-                kickOffSamples(numSamples: 8)
+                kickOffSamples(numSamples: samplesPerBatch)
             }
         }
-        let remainder = numSamples % 8
+        let remainder = numSamples % samplesPerBatch
         if remainder != 0 {
             kickOffSamples(numSamples: remainder)
         }
