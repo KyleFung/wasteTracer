@@ -144,7 +144,7 @@ typedef struct Material {
 
 typedef struct Texture {
     char *textureName;
-    uint8_t *data;
+    uint32_t *data;
     uint32_t width;
     uint32_t height;
 } Texture;
