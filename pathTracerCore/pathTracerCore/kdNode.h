@@ -113,6 +113,18 @@ struct Camera {
     simd_float3 up;
 };
 
+typedef struct Material {
+    simd_float3 diffColor;
+    simd_float3 specColor;
+    float specPower;
+} Material;
+
+typedef struct MaterialLookup {
+    unsigned int startFace;
+    unsigned int numFaces;
+    Material material;
+} MaterialLookup;
+
 typedef struct ModelGPU {
     unsigned int faceStart;
     unsigned int vertexStart;
@@ -122,6 +134,7 @@ typedef struct ModelGPU {
     AABB aabb;
     unsigned int kdNodeStart;
     unsigned int kdLeafStart;
+    unsigned int materialLUTStart;
 } ModelGPU;
 
 typedef struct SceneGPU {
@@ -133,15 +146,6 @@ typedef struct SceneGPU {
 
 // CPU only
 #if !__METAL__
-typedef struct Material {
-    char *materialName;
-    simd_float3 diffColor;
-    simd_float3 specColor;
-    float specPower;
-    char *diffMapName;
-    uint32_t diffMapIndex;
-} Material;
-
 typedef struct Texture {
     char *textureName;
     uint32_t *data;
@@ -160,6 +164,8 @@ typedef struct Model {
     unsigned int nodeCount;
     unsigned int *kdLeaves;
     unsigned int leafCount;
+    MaterialLookup *materialLUT;
+    unsigned int matCount;
 } Model;
 
 typedef struct Scene {

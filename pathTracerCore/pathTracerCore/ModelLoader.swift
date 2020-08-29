@@ -8,13 +8,6 @@ extension Triangle {
     }
 }
 
-extension Material {
-    init(_ name: String) {
-        self.init()
-        self.materialName = toUnsafe(name)
-    }
-}
-
 extension Texture {
     init(_ name: String) {
         self.init()
@@ -31,7 +24,7 @@ public func loadModel(file: String) -> Model {
     let dirPath = fullPath.deletingLastPathComponent().relativePath
     var vertexCount: Int = 0
     var faceCount: Int = 0
-    var materials: [Material] = []
+    var materials = [String : Material]()
     var textures: [Texture] = []
 
     if let aStreamReader = StreamReader(path: fullPath) {
@@ -41,14 +34,11 @@ public func loadModel(file: String) -> Model {
         while let line = aStreamReader.nextLine() {
             if line.isEmpty {
                 continue
-            }
-            if line[line.startIndex] == "v" {
+            } else if line[line.startIndex] == "v" {
                 vertexCount += 1
-            }
-            if line[line.startIndex] == "f" {
+            } else if line[line.startIndex] == "f" {
                 faceCount += 1
-            }
-            if line.hasPrefix("mtllib") {
+            } else if line.hasPrefix("mtllib") {
                 // Load in a material library
                 let fileName = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")[1]
                 loadMaterials(file: dirPath + "/" + fileName, materials: &materials, textures: &textures)
@@ -58,18 +48,24 @@ public func loadModel(file: String) -> Model {
         print("Failed to load %s", file)
     }
 
-    // Collect vertices
+    // Collect geometry and material mappings
     var vertices = [Vertex](repeating: Vertex(), count: vertexCount)
     vertexCount = 0
     var aabbMin = simd_float3(repeating: Float.infinity)
     var aabbMax = simd_float3(repeating: -Float.infinity)
     var vertAttributes: Set<String> = .init()
+    var faces = [Triangle](repeating: Triangle(), count: faceCount)
+    var materialLUT: [MaterialLookup] = []
+    faceCount = 0
     if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }
+        let separation = CharacterSet(charactersIn: " /")
         while let line = aStreamReader.nextLine() {
-            if line.hasPrefix("v") && !line.hasPrefix("vt") {
+            if line.isEmpty {
+                continue
+            } else if line.hasPrefix("v") && !line.hasPrefix("vt") {
                 vertAttributes.insert("v")
                 let vertex = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
                 let x: Float = Float(vertex[1])!
@@ -85,30 +81,29 @@ public func loadModel(file: String) -> Model {
                 vertAttributes.insert("vt")
             } else if line.hasPrefix("vn") {
                 vertAttributes.insert("vn")
-            }
-        }
-    }
-
-    // Collect faces
-    var faces = [Triangle](repeating: Triangle(), count: faceCount)
-    faceCount = 0
-    if let aStreamReader = StreamReader(path: fullPath) {
-        defer {
-            aStreamReader.close()
-        }
-        let separation = CharacterSet(charactersIn: " /")
-        while let line = aStreamReader.nextLine() {
-            if line.isEmpty {
-                continue
-            }
-            if line[line.startIndex] == "f" {
+            } else if line[line.startIndex] == "f" {
                 let indices = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: separation)
                 faces[faceCount] = Triangle(UInt32(indices[0 * vertAttributes.count + 1])! - 1,
                                             UInt32(indices[1 * vertAttributes.count + 1])! - 1,
                                             UInt32(indices[2 * vertAttributes.count + 1])! - 1)
                 faceCount += 1
+            } else if line.hasPrefix("usemtl") {
+                let materialName = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")[1]
+                if let material = materials[materialName] {
+                    let firstIndex = UInt32(faceCount)
+                    let lookup = MaterialLookup(startFace: firstIndex, numFaces: 0, material: material)
+                    if let prevLookup = materialLUT.last {
+                        materialLUT[materialLUT.count - 1].numFaces = firstIndex - prevLookup.startFace
+                    }
+                    materialLUT.append(lookup)
+                }
             }
         }
+    }
+
+    // Patch up last material lookup
+    if let lastLookup = materialLUT.last {
+        materialLUT[materialLUT.count - 1].numFaces = UInt32(faceCount) - lastLookup.startFace
     }
 
     let cFaces = UnsafeMutablePointer<Triangle>.allocate(capacity: faces.count)
@@ -116,6 +111,9 @@ public func loadModel(file: String) -> Model {
 
     let cVertices = UnsafeMutablePointer<Vertex>.allocate(capacity: vertices.count)
     cVertices.initialize(from: UnsafeMutablePointer<Vertex>(mutating: vertices), count: vertices.count)
+
+    let cMaterialLUT = UnsafeMutablePointer<MaterialLookup>.allocate(capacity: materialLUT.count)
+    cMaterialLUT.initialize(from: UnsafeMutablePointer<MaterialLookup>(mutating: materialLUT), count: materialLUT.count)
 
     var model = Model(faces: cFaces,
                       vertices: cVertices,
@@ -126,7 +124,9 @@ public func loadModel(file: String) -> Model {
                       kdNodes: nil,
                       nodeCount: 0,
                       kdLeaves: nil,
-                      leafCount: 0)
+                      leafCount: 0,
+                      materialLUT: cMaterialLUT,
+                      matCount: UInt32(materialLUT.count))
 
     // Create kd tree for this model
     partitionModel(&model)
@@ -134,38 +134,31 @@ public func loadModel(file: String) -> Model {
     return model
 }
 
-func loadMaterials(file: String, materials: inout [Material], textures: inout [Texture]) {
+func loadMaterials(file: String, materials: inout [String : Material], textures: inout [Texture]) {
     let fullPath = URL(string: file)!
     let dirPath = fullPath.deletingLastPathComponent().relativePath
     if let aStreamReader = StreamReader(path: fullPath) {
         defer {
             aStreamReader.close()
         }
-        var newMaterial: Material?
+        var materialName: String?
         while let line = aStreamReader.nextLine() {
             let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedLine.hasPrefix("#") || trimmedLine.isEmpty {
                 continue
             } else if trimmedLine.hasPrefix("newmtl ") {
-                if let newMaterial = newMaterial {
-                    materials.append(newMaterial)
+                materialName = trimmedLine.components(separatedBy: " ")[1]
+                if let materialName = materialName {
+                    materials[materialName] = Material()
                 }
-                newMaterial = Material(trimmedLine.components(separatedBy: " ")[1])
-                // Initialize object... I hate C
-                newMaterial?.materialName = nil
-                newMaterial?.diffColor = simd_float3(repeating: 0.0)
-                newMaterial?.specColor = simd_float3(repeating: 0.0)
-                newMaterial?.specPower = 0.0
-                newMaterial?.diffMapName = nil
-                newMaterial?.diffMapIndex = uint32(0)
-            } else if trimmedLine.hasPrefix("Ns ") {
-                newMaterial?.specPower = Float(trimmedLine.components(separatedBy: " ")[1])!
-            } else if trimmedLine.hasPrefix("Kd ") {
+            } else if trimmedLine.hasPrefix("Ns "), let materialName = materialName {
+                materials[materialName]?.specPower = Float(trimmedLine.components(separatedBy: " ")[1])!
+            } else if trimmedLine.hasPrefix("Kd "), let materialName = materialName {
                 let vec = trimmedLine.components(separatedBy: " ")
-                newMaterial?.diffColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
-            } else if trimmedLine.hasPrefix("Ks ") {
+                materials[materialName]?.diffColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
+            } else if trimmedLine.hasPrefix("Ks "), let materialName = materialName {
                 let vec = trimmedLine.components(separatedBy: " ")
-                newMaterial?.specColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
+                materials[materialName]?.specColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
             } else if trimmedLine.hasPrefix("Ka ") {
                 continue
             } else if trimmedLine.hasPrefix("Ni ") {
@@ -177,18 +170,11 @@ func loadMaterials(file: String, materials: inout [Material], textures: inout [T
             } else if trimmedLine.hasPrefix("map_Kd ") {
                 let textureName = trimmedLine.components(separatedBy: " ")[1]
                 if let texture = loadTexture(file: dirPath + "/" + textureName) {
-                    newMaterial?.diffMapName = toUnsafe(textureName)
-                    newMaterial?.diffMapIndex = UInt32(textures.count)
                     textures.append(texture)
                 }
             } else {
                 print("Unknown material attribute: ", trimmedLine)
             }
-        }
-
-        // Collect the last material
-        if let newMaterial = newMaterial {
-            materials.append(newMaterial)
         }
     } else {
         print("Failed to load %s", file)
