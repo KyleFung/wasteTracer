@@ -135,6 +135,7 @@ class PathTracer {
         encoder!.setBuffer(leafBuffer, offset: 0, index: 5)
         encoder!.setBuffer(faceBuffer, offset: 0, index: 6)
         encoder!.setBuffer(vertexBuffer, offset: 0, index: 7)
+        encoder!.setBuffer(materialLUTBuffer, offset: 0, index: 10)
 
         // Increment number of samples
         encoder!.setBytes(&numIterations, length: MemoryLayout<UInt32>.stride, index: 8)

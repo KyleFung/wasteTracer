@@ -43,12 +43,6 @@ typedef struct AABB {
     simd_float3 min;
 } AABB;
 
-typedef struct Intersection {
-    float distance; // NaN <=> miss
-    simd_float3 normal;
-    simd_float3 pos;
-} Intersection;
-
 typedef struct Transform {
     simd_float3 scale;
     simd_float3x3 rotation;
@@ -97,6 +91,19 @@ typedef struct MaterialLookup {
     unsigned int numFaces;
     Material material;
 } MaterialLookup;
+
+typedef struct MaterialQuery {
+    unsigned int faceID;
+    unsigned int materialLUTStart;
+    unsigned int materialCount;
+} MaterialQuery;
+
+typedef struct Intersection {
+    float distance; // NaN <=> miss
+    simd_float3 normal;
+    simd_float3 pos;
+    MaterialQuery materialQuery;
+} Intersection;
 
 typedef struct ModelRef {
     uint32_t modelIndex;

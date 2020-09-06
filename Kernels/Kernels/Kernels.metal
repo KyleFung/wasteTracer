@@ -67,13 +67,27 @@ bool inBox(simd_float3 p, const AABB box) {
     return all(p < box.max && p > box.min);
 }
 
-Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
-    Intersection intersection = { distance, normal, pos };
+MaterialQuery emptyQuery() {
+    MaterialQuery query;
+    query.faceID = -1;
+    query.materialCount = -1;
+    query.materialLUTStart = -1;
+    return query;
+}
+
+bool isEmptyQuery(MaterialQuery query) {
+    return query.faceID == static_cast<unsigned int>(-1) ||
+           query.materialLUTStart == static_cast<unsigned int>(-1) ||
+           query.materialCount == static_cast<unsigned int>(-1);
+}
+
+Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos, MaterialQuery materialQuery) {
+    Intersection intersection = { distance, normal, pos, materialQuery };
     return intersection;
 }
 
 Intersection missedIntersection() {
-    Intersection miss = { NAN, float3(NAN), float3(NAN) };
+    Intersection miss = { NAN, float3(NAN), float3(NAN), emptyQuery() };
     return miss;
 }
 
@@ -106,7 +120,13 @@ Intersection intersectionBox(BoxGPU b, Ray r) {
                                  boxSDF(pos + eps.yxz, b.dimensions),
                                  boxSDF(pos + eps.zyx, b.dimensions));
         simd_float3 normal = normalize(dev - d);
-        return makeIntersection(t, normal, pos);
+
+        MaterialQuery query;
+        query.faceID = 0;
+        query.materialLUTStart = b.materialLUTStart;
+        query.materialCount = 1;
+
+        return makeIntersection(t, normal, pos, query);
     } else {
         return missedIntersection();
     }
@@ -116,7 +136,7 @@ simd_float3 normalOf(ExplicitTriangle t) {
     return normalize(cross(t.v1 - t.v0, t.v2 - t.v0));
 }
 
-Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
+Intersection intersectionTriangle(ExplicitTriangle t, Ray r, MaterialQuery query) {
     // Triangle plane
     simd_float3 nor = normalOf(t);
     float d = dot(nor, t.v0);
@@ -137,7 +157,7 @@ Intersection intersectionTriangle(ExplicitTriangle t, Ray r) {
 
     if (side0 * side1 >= 0 && side1 * side2 >= 0) {
         // Intersection
-        return makeIntersection(hit, nor, hitPos);
+        return makeIntersection(hit, nor, hitPos, query);
     } else {
         // Not inside triangle (miss)
         return missedIntersection();
@@ -265,7 +285,10 @@ Intersection intersectionTreeInPlace(constant const KDNode *nodes, constant cons
                 const Triangle triangle = faces[faceIndex];
                 ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
-                Intersection triIntersect = intersectionTriangle(t, r);
+                MaterialQuery query = emptyQuery();
+                query.faceID = faceIndex;
+
+                Intersection triIntersect = intersectionTriangle(t, r, query);
                 leafIntersection = closestIntersection(leafIntersection, triIntersect);
             }
 
@@ -278,7 +301,10 @@ Intersection intersectionTreeInPlace(constant const KDNode *nodes, constant cons
                 const Triangle triangle = faces[faceIndex];
                 ExplicitTriangle t = makeExplicitFace(vertices, triangle);
 
-                Intersection triIntersect = intersectionTriangle(t, r);
+                MaterialQuery query = emptyQuery();
+                query.faceID = faceIndex;
+
+                Intersection triIntersect = intersectionTriangle(t, r, query);
                 leafIntersection = closestIntersection(leafIntersection, triIntersect);
             }
 
@@ -308,6 +334,8 @@ Intersection intersectionModel(ModelGPU model, Ray r,
 
     modelIntersection = intersectionTreeInPlace(nodes + model.kdNodeStart, leaves + model.kdLeafStart,
                                                 faces + model.faceStart, vertices + model.vertexStart, r);
+    modelIntersection.materialQuery.materialLUTStart = model.materialLUTStart;
+    modelIntersection.materialQuery.materialCount = model.materialCount;
 
     return modelIntersection;
 }
@@ -371,6 +399,29 @@ Intersection intersectionScene(SceneGPU scene, Ray r,
     return closest;
 }
 
+Material defaultMaterial() {
+    Material mat;
+    mat.diffColor = float3(0.7, 0.7, 0.7);
+    mat.specColor = float3(0.1, 0.1, 0.1);
+    mat.specPower = 2.0f;
+    return mat;
+}
+
+Material resolveMaterial(constant const MaterialLookup *materialLUT, MaterialQuery query) {
+    if (isEmptyQuery(query)) {
+        return defaultMaterial();
+    }
+
+    for (unsigned int i = 0; i < query.materialCount; i++) {
+        unsigned int matIndex = query.materialLUTStart + i;
+        MaterialLookup entry = materialLUT[matIndex];
+        if (entry.startFace <= query.faceID && query.faceID < entry.startFace + entry.numFaces) {
+            return entry.material;
+        }
+    }
+    return defaultMaterial();
+}
+
 float hash(float seed) {
     return fract(sin(seed) * 43758.5453);
 }
@@ -429,6 +480,9 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
             const Intersection intersection = intersectionScene(scene, ray,
                                                                 instances, models, nodes, leaves, faces, vertices);
             if (isHit(intersection)) {
+                // Resolve the material of the hit point
+                Material material = resolveMaterial(materialLUT, intersection.materialQuery);
+
                 // Hit geometry (continue tracing)
                 ray.pos = intersection.pos + 0.01 * intersection.normal;
                 seed = goldenSequence(seed);
@@ -436,7 +490,7 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
 
                 // Increment the ray (assuming that no geometry is emissive)
                 const float pi_inverse = 1.0f / 3.14159f;
-                const float brdf = 0.95f * pi_inverse;
+                const float3 brdf = material.diffColor * pi_inverse;
                 const float geometry = dot(ray.dir, intersection.normal);
                 pdf *= pi_inverse;
                 throughPut *= brdf * geometry;

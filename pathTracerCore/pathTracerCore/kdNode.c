@@ -106,13 +106,21 @@ bool inBox(simd_float3 p, const AABB box) {
     return simd_all(p < box.max && p > box.min);
 }
 
+MaterialQuery emptyQuery() {
+    MaterialQuery query;
+    query.faceID = -1;
+    query.materialCount = 0;
+    query.materialLUTStart = 0;
+    return query;
+}
+
 Intersection makeIntersection(float distance, simd_float3 normal, simd_float3 pos) {
-    Intersection intersection = { distance, normal, pos };
+    Intersection intersection = { distance, normal, pos, emptyQuery() };
     return intersection;
 }
 
 Intersection missedIntersection() {
-    Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN) };
+    Intersection miss = { NAN, simd_make_float3(NAN), simd_make_float3(NAN), emptyQuery() };
     return miss;
 }
 
