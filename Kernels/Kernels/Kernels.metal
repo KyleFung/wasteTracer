@@ -446,8 +446,13 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
     return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
 }
 
+float extractSeed(texture2d<float, access::read> whiteNoise, uint2 pixelPos) {
+    return whiteNoise.read(pixelPos % 64).r;
+}
+
 kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[texture(0)]],
                                texture2d<half, access::read>  inRadiance  [[texture(1)]],
+                               texture2d<float, access::read> whiteNoise  [[texture(2)]],
                                constant SceneGPU&             scene       [[buffer(0)]],
                                constant InstanceGPU*          instances   [[buffer(1)]],
                                constant ModelGPU*             models      [[buffer(2)]],
@@ -466,10 +471,12 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
 
     float3 result = numSamples == 0 ? float3(0) : float3(inRadiance.read(gid).xyz);
 
+    const float pixelSeed = extractSeed(whiteNoise, gid);
+
     for (unsigned int i = 0; i < newSamples; i++) {
         // Set up for generating a new sample.
         unsigned int sample = numSamples + i;
-        float seed = fract((sin(dot(uv, float2(12.9898, 78.233))) * (43758.5453123)) + sample * 2.23606798);
+        float sampleSeed = fract(pixelSeed + sample * 2.23606798);
 
         float3 sumOfPaths = float3(0.0f, 0.0f, 0.0f);
         float3 throughPut = float3(1.0f, 1.0f, 1.0f);
@@ -485,8 +492,8 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
 
                 // Hit geometry (continue tracing)
                 ray.pos = intersection.pos + 0.01 * intersection.normal;
-                seed = goldenSequence(seed);
-                ray.dir = normalize(cosineDirection(seed, intersection.normal));
+                sampleSeed = goldenSequence(sampleSeed);
+                ray.dir = normalize(cosineDirection(sampleSeed, intersection.normal));
 
                 // Increment the ray (assuming that no geometry is emissive)
                 const float pi_inverse = 1.0f / 3.14159f;

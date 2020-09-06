@@ -24,6 +24,7 @@ class PathTracer {
     var radianceState = 0
     var radianceTexture0: MTLTexture?
     var radianceTexture1: MTLTexture?
+    var noiseTexture: MTLTexture?
     var sceneBuffer: MTLBuffer?
     var instanceBuffer: MTLBuffer?
     var modelBuffer: MTLBuffer?
@@ -39,6 +40,19 @@ class PathTracer {
     var numIterations = UInt32(0)
     var radiance = [simd_float4](repeating: simd_float4(), count: Int(defaultRes.x * defaultRes.y))
     var pixels = [simd_uchar4](repeating: simd_uchar4(), count: Int(defaultRes.x * defaultRes.y))
+
+    func generate64x64WhiteNoise() {
+        var noise = Array<Float32>.init(repeating: Float32(0.0), count: 64 * 64)
+        for i in 0..<64*64 {
+            noise[i] = Float(Int.random(in: 0...1000)) / Float32(1000.0)
+        }
+        let noiseDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r32Float,
+                                                                 width: 64, height: 64, mipmapped: false)
+        noiseDesc.usage = .shaderRead
+        noiseTexture = device!.makeTexture(descriptor: noiseDesc)
+        let region = MTLRegionMake2D(0, 0, 64, 64)
+        noiseTexture?.replace(region: region, mipmapLevel: 0, withBytes: noise, bytesPerRow: 64 * 4)
+    }
 
     func createSceneForModel(path: String) {
         model = loadModel(file: path)
@@ -108,6 +122,9 @@ class PathTracer {
                 faceBuffer = device!.makeBuffer(bytes: model.faces, length: MemoryLayout<Triangle>.stride * Int(model.faceCount))
                 vertexBuffer = device!.makeBuffer(bytes: model.vertices, length: MemoryLayout<Vertex>.stride * Int(model.vertCount))
                 materialLUTBuffer = device!.makeBuffer(bytes: materialLUT, length: MemoryLayout<MaterialLookup>.stride * materialLUT.count)
+
+                // Generate white noise
+                generate64x64WhiteNoise()
             }
         }
     }
@@ -126,6 +143,7 @@ class PathTracer {
             encoder!.setTexture(radianceTexture0!, index: 1)
             radianceState = 0
         }
+        encoder!.setTexture(noiseTexture!, index: 2)
 
         encoder!.setBuffer(sceneBuffer, offset: 0, index: 0)
         encoder!.setBuffer(instanceBuffer, offset: 0, index: 1)
