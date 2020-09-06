@@ -80,33 +80,6 @@ typedef struct KDNode {
     };
 } KDNode;
 
-typedef struct ModelRef {
-    uint32_t modelIndex;
-} ModelRef;
-
-typedef struct Box {
-    simd_float3 dimensions;
-} Box;
-
-typedef struct Sphere {
-    float radius;
-} Sphere;
-
-typedef struct Primitive {
-    uint8_t type; // 0 = Model, 1 = Box, 2 = Sphere
-    union {
-        ModelRef modelRef;
-        Box box;
-        Sphere sphere;
-    };
-} Primitive;
-
-typedef struct Instance {
-    AABB aabb; // AABB of the transformed AABB
-    Transform transform;
-    Primitive primitive;
-} Instance;
-
 struct Camera {
     simd_float3 pos;
     simd_float3 lookAt;
@@ -125,6 +98,60 @@ typedef struct MaterialLookup {
     Material material;
 } MaterialLookup;
 
+typedef struct ModelRef {
+    uint32_t modelIndex;
+} ModelRef;
+
+typedef struct Box {
+    simd_float3 dimensions;
+    MaterialLookup material;
+} Box;
+
+typedef struct Sphere {
+    float radius;
+    MaterialLookup material;
+} Sphere;
+
+typedef struct Primitive {
+    uint8_t type; // 0 = Model, 1 = Box, 2 = Sphere
+    union {
+        ModelRef modelRef;
+        Box box;
+        Sphere sphere;
+    };
+} Primitive;
+
+typedef struct Instance {
+    AABB aabb; // AABB of the transformed AABB
+    Transform transform;
+    Primitive primitive;
+} Instance;
+
+typedef struct BoxGPU {
+    simd_float3 dimensions;
+    unsigned int materialLUTStart;
+} BoxGPU;
+
+typedef struct SphereGPU {
+    float radius;
+    unsigned int materialLUTStart;
+} SphereGPU;
+
+typedef struct PrimitiveGPU {
+    uint8_t type; // 0 = Model, 1 = Box, 2 = Sphere
+    union {
+        ModelRef modelRef;
+        BoxGPU box;
+        SphereGPU sphere;
+    };
+} PrimitiveGPU;
+
+typedef struct InstanceGPU {
+    AABB aabb; // AABB of the transformed AABB
+    Transform transform;
+    PrimitiveGPU primitive;
+} InstanceGPU;
+
 typedef struct ModelGPU {
     unsigned int faceStart;
     unsigned int vertexStart;
@@ -135,6 +162,7 @@ typedef struct ModelGPU {
     unsigned int kdNodeStart;
     unsigned int kdLeafStart;
     unsigned int materialLUTStart;
+    unsigned int materialCount;
 } ModelGPU;
 
 typedef struct SceneGPU {

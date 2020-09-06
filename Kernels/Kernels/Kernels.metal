@@ -92,7 +92,7 @@ Intersection closestIntersection(Intersection a, Intersection b) {
     }
 }
 
-Intersection intersectionBox(Box b, Ray r) {
+Intersection intersectionBox(BoxGPU b, Ray r) {
     AABB aabb;
     aabb.min = -b.dimensions * 0.5f;
     aabb.max =  b.dimensions * 0.5f;
@@ -312,7 +312,7 @@ Intersection intersectionModel(ModelGPU model, Ray r,
     return modelIntersection;
 }
 
-Intersection intersectionInstance(Instance instance, constant const ModelGPU *modelArray, Ray r,
+Intersection intersectionInstance(InstanceGPU instance, constant const ModelGPU *modelArray, Ray r,
                                   constant const KDNode *nodes, constant const unsigned int *leaves,
                                   constant const Triangle *faces, constant const Vertex *vertices) {
     simd_float3 oldPos = r.pos;
@@ -331,7 +331,7 @@ Intersection intersectionInstance(Instance instance, constant const ModelGPU *mo
             break;
         }
         case 1: {
-            Box box = instance.primitive.box;
+            BoxGPU box = instance.primitive.box;
             intersection = intersectionBox(box, r);
             break;
         }
@@ -351,7 +351,7 @@ Intersection intersectionInstance(Instance instance, constant const ModelGPU *mo
 }
 
 Intersection intersectionScene(SceneGPU scene, Ray r,
-                               constant const Instance *instances, constant const ModelGPU *models,
+                               constant const InstanceGPU *instances, constant const ModelGPU *models,
                                constant const KDNode *nodes, constant const unsigned int *leaves,
                                constant const Triangle *faces, constant const Vertex *vertices) {
     if (!intersectsAABB(scene.aabb, r)) {
@@ -360,7 +360,7 @@ Intersection intersectionScene(SceneGPU scene, Ray r,
 
     Intersection closest = missedIntersection();
     for (unsigned int i = 0; i < scene.instanceCount; i++) {
-        Instance instance = instances[scene.instanceStart + i];
+        InstanceGPU instance = instances[scene.instanceStart + i];
         if (intersectsAABB(instance.aabb, r)) {
             Intersection instanceIntersection = intersectionInstance(instance, models, r,
                                                                      nodes, leaves, faces, vertices);
@@ -398,7 +398,7 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
 kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[texture(0)]],
                                texture2d<half, access::read>  inRadiance  [[texture(1)]],
                                constant SceneGPU&             scene       [[buffer(0)]],
-                               constant Instance*             instances   [[buffer(1)]],
+                               constant InstanceGPU*          instances   [[buffer(1)]],
                                constant ModelGPU*             models      [[buffer(2)]],
                                constant Camera&               camera      [[buffer(3)]],
                                constant KDNode*               nodes       [[buffer(4)]],
@@ -407,6 +407,7 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
                                constant Vertex*               vertices    [[buffer(7)]],
                                constant unsigned int&         numSamples  [[buffer(8)]],
                                constant unsigned int&         newSamples  [[buffer(9)]],
+                               constant MaterialLookup*       materialLUT [[buffer(10)]],
                                uint2                          gid [[thread_position_in_grid]]) {
     const uint2 textureSize = {outRadiance.get_width(), outRadiance.get_height()};
     float2 uv = static_cast<float2>(gid) / static_cast<float2>(textureSize);

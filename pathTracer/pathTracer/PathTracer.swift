@@ -33,6 +33,7 @@ class PathTracer {
     var faceBuffer: MTLBuffer?
     var vertexBuffer: MTLBuffer?
     var numSamplesBuffer: MTLBuffer?
+    var materialLUTBuffer: MTLBuffer?
 
     // Image fields
     var numIterations = UInt32(0)
@@ -52,23 +53,61 @@ class PathTracer {
                 var modelGPU = ModelGPU.init(faceStart: 0, vertexStart: 0,
                                              faceCount: model.faceCount, vertCount: model.vertCount,
                                              centroid: model.centroid, aabb: model.aabb,
-                                             kdNodeStart: 0, kdLeafStart: 0)
+                                             kdNodeStart: 0, kdLeafStart: 0,
+                                             materialLUTStart: 0, materialCount: model.matCount)
                 var camera = Camera.init(pos: eye, lookAt: lookAt, up: up)
 
+                // Initialize the material LUT with the model's materials
+                var materialLUT: [MaterialLookup] = []
+                for i in 0..<model.matCount {
+                    materialLUT.append(model.materialLUT![Int(i)])
+                }
+                // Model assumes at least one material
+                if materialLUT.isEmpty {
+                    let defaultMaterial: Material = .init(diffColor: simd_float3(repeating: 0.7),
+                                                          specColor: simd_float3(repeating: 0.1),
+                                                          specPower: Float(2.0))
+                    materialLUT.append(.init(startFace: 0, numFaces: model.faceCount,
+                                             material: defaultMaterial))
+                }
+
+                var instances: [InstanceGPU] = []
+                for i in 0..<scene.instanceCount {
+                    let instance = scene.instances![Int(i)]
+                    let primitive = instance.primitive
+                    var primitiveGPU: PrimitiveGPU = .init()
+                    primitiveGPU.type = primitive.type
+                    switch primitive.type {
+                    case 0:
+                        primitiveGPU.modelRef = primitive.modelRef
+                    case 1:
+                        primitiveGPU.box = .init(dimensions: primitive.box.dimensions,
+                                                 materialLUTStart: UInt32(materialLUT.count))
+                        materialLUT.append(primitive.box.material)
+                    case 2:
+                        primitiveGPU.sphere = .init(radius: primitive.sphere.radius,
+                                                    materialLUTStart: UInt32(materialLUT.count))
+                        materialLUT.append(primitive.sphere.material)
+                    default:
+                        break
+                    }
+                    let instanceGPU: InstanceGPU = .init(aabb: instance.aabb,
+                                                         transform: instance.transform,
+                                                         primitive: primitiveGPU)
+                    instances.append(instanceGPU)
+                }
+
                 // Create buffer objects for scene
-                sceneBuffer = device!.makeBuffer(bytes: &sceneGPU, length: MemoryLayout<SceneGPU>.stride, options: [])
-                instanceBuffer = device!.makeBuffer(bytes: scene.instances,
-                                                    length: MemoryLayout<Instance>.stride * Int(scene.instanceCount), options: [])
-                modelBuffer = device!.makeBuffer(bytes: &modelGPU, length: MemoryLayout<ModelGPU>.stride, options: [])
-                cameraBuffer = device!.makeBuffer(bytes: &camera, length: MemoryLayout<Camera>.stride, options: [])
-                nodeBuffer = device!.makeBuffer(bytes: model.kdNodes,
-                                                length: MemoryLayout<KDNode>.stride * Int(model.nodeCount), options: [])
-                leafBuffer = device!.makeBuffer(bytes: model.kdLeaves,
-                                                length: MemoryLayout<UInt32>.stride * Int(model.leafCount), options: [])
-                faceBuffer = device!.makeBuffer(bytes: model.faces,
-                                                length: MemoryLayout<Triangle>.stride * Int(model.faceCount), options: [])
-                vertexBuffer = device!.makeBuffer(bytes: model.vertices,
-                                                  length: MemoryLayout<Vertex>.stride * Int(model.vertCount), options: [])
+                sceneBuffer = device!.makeBuffer(bytes: &sceneGPU, length: MemoryLayout<SceneGPU>.stride)
+                instanceBuffer = device!.makeBuffer(bytes: instances,
+                                                    length: MemoryLayout<InstanceGPU>.stride * instances.count)
+                modelBuffer = device!.makeBuffer(bytes: &modelGPU, length: MemoryLayout<ModelGPU>.stride)
+                cameraBuffer = device!.makeBuffer(bytes: &camera, length: MemoryLayout<Camera>.stride)
+                nodeBuffer = device!.makeBuffer(bytes: model.kdNodes, length: MemoryLayout<KDNode>.stride * Int(model.nodeCount))
+                leafBuffer = device!.makeBuffer(bytes: model.kdLeaves, length: MemoryLayout<UInt32>.stride * Int(model.leafCount))
+                faceBuffer = device!.makeBuffer(bytes: model.faces, length: MemoryLayout<Triangle>.stride * Int(model.faceCount))
+                vertexBuffer = device!.makeBuffer(bytes: model.vertices, length: MemoryLayout<Vertex>.stride * Int(model.vertCount))
+                materialLUTBuffer = device!.makeBuffer(bytes: materialLUT, length: MemoryLayout<MaterialLookup>.stride * materialLUT.count)
             }
         }
     }
