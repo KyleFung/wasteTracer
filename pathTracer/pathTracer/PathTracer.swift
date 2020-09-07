@@ -68,7 +68,7 @@ class PathTracer {
                                              faceCount: model.faceCount, vertCount: model.vertCount,
                                              centroid: model.centroid, aabb: model.aabb,
                                              kdNodeStart: 0, kdLeafStart: 0,
-                                             materialLUTStart: 0, materialCount: model.matCount)
+                                             materialLUTStart: 0, materialCount: max(1, model.matCount))
                 var camera = Camera.init(pos: eye, lookAt: lookAt, up: up)
 
                 // Initialize the material LUT with the model's materials
@@ -78,9 +78,9 @@ class PathTracer {
                 }
                 // Model assumes at least one material
                 if materialLUT.isEmpty {
-                    let defaultMaterial: Material = .init(diffColor: simd_float3(repeating: 0.7),
-                                                          specColor: simd_float3(repeating: 0.1),
-                                                          specPower: Float(2.0))
+                    let defaultMaterial: Material = .init(diffColor: simd_float3(repeating: 0.01),
+                                                          specColor: simd_float3(repeating: 0.9),
+                                                          specPower: Float(10.0))
                     materialLUT.append(.init(startFace: 0, numFaces: model.faceCount,
                                              material: defaultMaterial))
                 }

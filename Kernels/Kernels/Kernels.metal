@@ -401,9 +401,9 @@ Intersection intersectionScene(SceneGPU scene, Ray r,
 
 Material defaultMaterial() {
     Material mat;
-    mat.diffColor = float3(0.7, 0.7, 0.7);
-    mat.specColor = float3(0.1, 0.1, 0.1);
-    mat.specPower = 2.0f;
+    mat.diffColor = float3(0.5, 0.5, 0.5);
+    mat.specColor = float3(0.2, 0.2, 0.2);
+    mat.specPower = 10.0f;
     return mat;
 }
 
@@ -434,7 +434,7 @@ float sqrt2Sequence(float seed) {
     return fract(seed + 1.41421356237f);
 }
 
-simd_float3 cosineDirection(float seed, simd_float3 nor) {
+float3 diffuseDirection(float seed, float3 nor) {
     float3 tc = float3(1.0 + nor.z - nor.xy * nor.xy, -nor.x * nor.y) / (1.0 + nor.z);
     float3 uu = float3(tc.x, tc.z, -nor.x);
     float3 vv = float3(tc.z, tc.y, -nor.y);
@@ -444,6 +444,50 @@ simd_float3 cosineDirection(float seed, simd_float3 nor) {
     float a = 6.283185 * v;
 
     return sqrt(u) * (cos(a) * uu + sin(a) * vv) + sqrt(1.0 - u) * nor;
+}
+
+float3 specularDirection(float seed, float3 refl, float alpha) {
+    float3 tc = float3(1.0 + refl.z - refl.xy * refl.xy, -refl.x * refl.y) / (1.0 + refl.z);
+    float3 uu = float3(tc.x, tc.z, -refl.x);
+    float3 vv = float3(tc.z, tc.y, -refl.y);
+
+    float u = pow(fabs(hash(78.233 + seed)), 2.0 / (alpha + 1.0));
+    float v = fabs(hash(10.873 + seed));
+    float a = 6.283185 * v;
+
+    return sqrt(1 - u) * (cos(a) * uu + sin(a) * vv) + sqrt(u) * refl;
+}
+
+float4 samplePhong(Material material, float seed, float3 normal, float3 in) {
+    // Determine if we should sample diffuse or specular lobe
+    const float d = material.diffColor.x + material.diffColor.y + material.diffColor.z;
+    const float s = material.specColor.x + material.specColor.y + material.specColor.z;
+    const float pD = d / (d + s);
+    const float pS = max(0.0, 1.0f - pD);
+    const bool diffuseSample = seed < pD;
+
+    float3 dir = float3(0.0);
+    const float3 refl = normalize(2.0 * normal - in);
+    if (diffuseSample) {
+        dir = diffuseDirection(seed / pD, normal);
+    } else {
+        dir = specularDirection((seed - pD) / pS, refl, material.specPower);
+    }
+    dir = normalize(dir);
+
+    const float pdfS = ((material.specPower + 2.0) / (2.0 * 3.14159)) * pow(max(0.0, dot(refl, dir)), material.specPower);
+    const float pdfD = 1.0 / 3.14159;
+    const float pdf = pS * pdfS + pD * pdfD;
+
+    return float4(dir, pdf);
+}
+
+float3 phongBRDF(Material material, float3 norm, float3 in, float3 out) {
+    const float diffBRDF = 1.0 / 3.14159;
+    const float3 refl = normalize(2.0 * norm - in);
+    const float specBRDF = ((material.specPower + 2.0) / (2.0 * 3.14159)) *
+                            pow(max(0.0, dot(refl, out)), material.specPower);
+    return material.diffColor * diffBRDF + material.specColor * specBRDF;
 }
 
 float extractSeed(texture2d<float, access::read> whiteNoise, uint2 pixelPos) {
@@ -483,24 +527,26 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
         float pdf = 1.0f;
 
         Ray ray = cameraRay;
-        for (int rayDepth = 0; rayDepth < 2; rayDepth++) {
+        for (int rayDepth = 0; rayDepth < 3; rayDepth++) {
             const Intersection intersection = intersectionScene(scene, ray,
                                                                 instances, models, nodes, leaves, faces, vertices);
-            if (isHit(intersection)) {
+            if (isHit(intersection) && any(throughPut > 0.02)) {
                 // Resolve the material of the hit point
                 Material material = resolveMaterial(materialLUT, intersection.materialQuery);
 
-                // Hit geometry (continue tracing)
-                ray.pos = intersection.pos + 0.01 * intersection.normal;
+                // Sample BRDF of the hit point
                 sampleSeed = goldenSequence(sampleSeed);
-                ray.dir = normalize(cosineDirection(sampleSeed, intersection.normal));
+                const float4 phongSample = samplePhong(material, sampleSeed, intersection.normal, -ray.dir);
+                const float3 brdf = phongBRDF(material, intersection.normal, -ray.dir, phongSample.xyz);
 
-                // Increment the ray (assuming that no geometry is emissive)
-                const float pi_inverse = 1.0f / 3.14159f;
-                const float3 brdf = material.diffColor * pi_inverse;
-                const float geometry = dot(ray.dir, intersection.normal);
-                pdf *= pi_inverse;
+                // Update throughput and pdf
+                const float geometry = dot(phongSample.xyz, intersection.normal);
+                pdf *= phongSample.w;
                 throughPut *= brdf * geometry;
+
+                // Increment the ray
+                ray.pos = intersection.pos + 0.01 * intersection.normal;
+                ray.dir = phongSample.xyz;
             } else {
                 // Hit the skybox (uniform radiance)
                 const float ibl = 2.0f * max(0.0f, ray.dir.y);
