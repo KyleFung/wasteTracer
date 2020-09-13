@@ -38,8 +38,6 @@ class PathTracer {
 
     // Image fields
     var numIterations = UInt32(0)
-    var radiance = [simd_float4](repeating: simd_float4(), count: Int(defaultRes.x * defaultRes.y))
-    var pixels = [simd_uchar4](repeating: simd_uchar4(), count: Int(defaultRes.x * defaultRes.y))
 
     func generate64x64WhiteNoise() {
         var noise = Array<Float32>.init(repeating: Float32(0.0), count: 64 * 64)
