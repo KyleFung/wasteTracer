@@ -992,12 +992,22 @@ Scene buildBasicScene(Model model) {
     Instance floor;
     floor.primitive.type = 1;
     floor.primitive.box = plane;
+    floor.primitive.box.material.material.diffColor = simd_make_float3(0.9f, 0.01f, 0.01f);
+    floor.primitive.box.material.material.specColor = simd_make_float3(0.01f, 0.01f, 0.01f);
+    floor.primitive.box.material.material.specPower = 1.0f;
+    floor.primitive.box.material.numFaces = 1;
+    floor.primitive.box.material.startFace = 0;
     floor.transform = identityTransform();
     floor.aabb = transformAABB(planeAABB, floor.transform);
 
     Instance wall;
     wall.primitive.type = 1;
     wall.primitive.box = plane;
+    wall.primitive.box.material.material.diffColor = simd_make_float3(0.01f, 0.01f, 0.01f);
+    wall.primitive.box.material.material.specColor = simd_make_float3(0.9f, 0.9f, 0.9f);
+    wall.primitive.box.material.material.specPower = 100.0f;
+    wall.primitive.box.material.numFaces = 1;
+    wall.primitive.box.material.startFace = 0;
     wall.transform = identityTransform();
     wall.transform.rotation = simd_matrix3x3(simd_quaternion(3.1415f * 0.5f,
                                                              simd_make_float3(1.0f, 0.0f, 0.0f)));
