@@ -152,12 +152,12 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
                     materials[materialName] = Material()
                 }
             } else if trimmedLine.hasPrefix("Ns "), let materialName = materialName {
-                materials[materialName]?.specPower = Float(trimmedLine.components(separatedBy: " ")[1])!
+                materials[materialName]?.specPower = Float(trimmedLine.split(separator: " ")[1])!
             } else if trimmedLine.hasPrefix("Kd "), let materialName = materialName {
-                let vec = trimmedLine.components(separatedBy: " ")
+                let vec = trimmedLine.split(separator: " ")
                 materials[materialName]?.diffColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
             } else if trimmedLine.hasPrefix("Ks "), let materialName = materialName {
-                let vec = trimmedLine.components(separatedBy: " ")
+                let vec = trimmedLine.split(separator: " ")
                 materials[materialName]?.specColor = simd_float3(Float(vec[1])!, Float(vec[2])!, Float(vec[3])!)
             } else if trimmedLine.hasPrefix("Ka ") {
                 continue
