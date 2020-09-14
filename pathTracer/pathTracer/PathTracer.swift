@@ -35,6 +35,7 @@ class PathTracer {
     var vertexBuffer: MTLBuffer?
     var numSamplesBuffer: MTLBuffer?
     var materialLUTBuffer: MTLBuffer?
+    var dummyBuffer: MTLBuffer?
 
     // Image fields
     var numIterations = UInt32(0)
@@ -50,6 +51,14 @@ class PathTracer {
         noiseTexture = device!.makeTexture(descriptor: noiseDesc)
         let region = MTLRegionMake2D(0, 0, 64, 64)
         noiseTexture?.replace(region: region, mipmapLevel: 0, withBytes: noise, bytesPerRow: 64 * 4)
+    }
+
+    func createBufferOrDummy(ptr: UnsafeRawPointer?, len: Int) -> MTLBuffer? {
+        if len > 0, let ptr = ptr {
+            return device!.makeBuffer(bytes: ptr, length: len)
+        } else {
+            return dummyBuffer
+        }
     }
 
     func createSceneForModel(path: String) {
@@ -109,17 +118,26 @@ class PathTracer {
                     instances.append(instanceGPU)
                 }
 
+                // Create dummy buffer for things with 0 size
+                var number: UInt32 = 0
+                dummyBuffer = device!.makeBuffer(bytes: &number, length: MemoryLayout<UInt32>.stride)
+
                 // Create buffer objects for scene
                 sceneBuffer = device!.makeBuffer(bytes: &sceneGPU, length: MemoryLayout<SceneGPU>.stride)
-                instanceBuffer = device!.makeBuffer(bytes: instances,
-                                                    length: MemoryLayout<InstanceGPU>.stride * instances.count)
+                instanceBuffer = createBufferOrDummy(ptr: instances,
+                                                     len: MemoryLayout<InstanceGPU>.stride * instances.count)
                 modelBuffer = device!.makeBuffer(bytes: &modelGPU, length: MemoryLayout<ModelGPU>.stride)
                 cameraBuffer = device!.makeBuffer(bytes: &camera, length: MemoryLayout<Camera>.stride)
-                nodeBuffer = device!.makeBuffer(bytes: model.kdNodes, length: MemoryLayout<KDNode>.stride * Int(model.nodeCount))
-                leafBuffer = device!.makeBuffer(bytes: model.kdLeaves, length: MemoryLayout<UInt32>.stride * Int(model.leafCount))
-                faceBuffer = device!.makeBuffer(bytes: model.faces, length: MemoryLayout<Triangle>.stride * Int(model.faceCount))
-                vertexBuffer = device!.makeBuffer(bytes: model.vertices, length: MemoryLayout<Vertex>.stride * Int(model.vertCount))
-                materialLUTBuffer = device!.makeBuffer(bytes: materialLUT, length: MemoryLayout<MaterialLookup>.stride * materialLUT.count)
+                nodeBuffer = createBufferOrDummy(ptr: model.kdNodes,
+                                                 len: MemoryLayout<KDNode>.stride * Int(model.nodeCount))
+                leafBuffer = createBufferOrDummy(ptr: model.kdLeaves,
+                                                 len: MemoryLayout<UInt32>.stride * Int(model.leafCount))
+                faceBuffer = createBufferOrDummy(ptr: model.faces,
+                                                 len: MemoryLayout<Triangle>.stride * Int(model.faceCount))
+                vertexBuffer = createBufferOrDummy(ptr: model.vertices,
+                                                   len: MemoryLayout<Vertex>.stride * Int(model.vertCount))
+                materialLUTBuffer = createBufferOrDummy(ptr: materialLUT,
+                                                        len: MemoryLayout<MaterialLookup>.stride * materialLUT.count)
 
                 // Generate white noise
                 generate64x64WhiteNoise()
