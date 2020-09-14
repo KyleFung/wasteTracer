@@ -510,11 +510,12 @@ AABB unionPointAndAABB(simd_float3 p, const AABB box) {
 
 void splitAABB(const AABB aabb, const short splitAxis, const float splitPos,
                AABB *left, AABB *right /* out */) {
+    static const float boxOverlapTolerance = 0.00000001;
     assert(aabb.min[splitAxis] <= splitPos && splitPos <= aabb.max[splitAxis]);
     *left = aabb;
-    left->max[splitAxis] = splitPos;
+    left->max[splitAxis] = splitPos + boxOverlapTolerance;
     *right = aabb;
-    right->min[splitAxis] = splitPos;
+    right->min[splitAxis] = splitPos - boxOverlapTolerance;
 }
 
 typedef struct Polygon {
