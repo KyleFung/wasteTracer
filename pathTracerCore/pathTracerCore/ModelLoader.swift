@@ -65,7 +65,7 @@ public func loadModel(file: String) -> Model {
         while let line = aStreamReader.nextLine() {
             if line.isEmpty {
                 continue
-            } else if line.hasPrefix("v") && !line.hasPrefix("vt") {
+            } else if line.hasPrefix("v") && !line.hasPrefix("vt") && !line.hasPrefix("vn") {
                 vertAttributes.insert("v")
                 let vertex = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
                 let x: Float = Float(vertex[1])!
