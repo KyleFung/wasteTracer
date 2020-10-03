@@ -510,12 +510,11 @@ AABB unionPointAndAABB(simd_float3 p, const AABB box) {
 
 void splitAABB(const AABB aabb, const short splitAxis, const float splitPos,
                AABB *left, AABB *right /* out */) {
-    static const float boxOverlapTolerance = 0.00000001;
     assert(aabb.min[splitAxis] <= splitPos && splitPos <= aabb.max[splitAxis]);
     *left = aabb;
-    left->max[splitAxis] = splitPos + boxOverlapTolerance;
+    left->max[splitAxis] = splitPos;
     *right = aabb;
-    right->min[splitAxis] = splitPos - boxOverlapTolerance;
+    right->min[splitAxis] = splitPos;
 }
 
 typedef struct Polygon {
@@ -562,9 +561,13 @@ Polygon clipPolygon(const Plane p, const Polygon polygon) {
         }
         // Replace a straddling edge with a clipped version of itself
         if (currInside != nextInside) {
-            const float alpha = nextDist / (nextDist - currDist);
-            assert(fabs(nextDist - currDist) > 0.00000000000001); // Numerical stability
-            const simd_float3 intersection = alpha * currPos + (1.0f - alpha) * nextPos;
+            simd_float3 intersection;
+            if (fabs(nextDist - currDist) < 0.0000001) {
+                intersection = 0.5 * (currPos + nextPos);
+            } else {
+                const float alpha = nextDist / (nextDist - currDist);
+                intersection = alpha * currPos + (1.0f - alpha) * nextPos;
+            }
 
             if (currInside) {
                 clipped.verts[clipped.vertCount] = intersection;
@@ -581,7 +584,35 @@ Polygon clipPolygon(const Plane p, const Polygon polygon) {
     return clipped;
 }
 
-AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
+Polygon clipTriangle(const ExplicitTriangle t, const AABB aabb) {
+    Polygon p;
+    p.vertCount = 3;
+    p.verts[0] = t.v0;
+    p.verts[1] = t.v1;
+    p.verts[2] = t.v2;
+
+    p = clipPolygon(makePlane(simd_make_float4( 1.0f,  0.0f,  0.0f, -aabb.max.x)), p);
+    p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f,  aabb.min.x)), p);
+    p = clipPolygon(makePlane(simd_make_float4( 0.0f,  1.0f,  0.0f, -aabb.max.y)), p);
+    p = clipPolygon(makePlane(simd_make_float4( 0.0f, -1.0f,  0.0f,  aabb.min.y)), p);
+    p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f,  1.0f, -aabb.max.z)), p);
+    p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f,  aabb.min.z)), p);
+
+    // Snap to the box
+    for (int v = 0; v < p.vertCount; v++) {
+        for (int i = 0; i < 3; i++) {
+            if (fabs(p.verts[v][i] - aabb.min[i]) < 0.000001) {
+                p.verts[v][i] = aabb.min[i];
+            } else if (fabs(p.verts[v][i] - aabb.max[i]) < 0.000001) {
+                p.verts[v][i] = aabb.max[i];
+            }
+        }
+    }
+
+    return p;
+}
+
+AABB clipBoxOfTriangle(const ExplicitTriangle t, const AABB clipBox) {
     int numInsideVertices = 0;
     if (inBox(t.v0, clipBox)) { numInsideVertices++; }
     if (inBox(t.v1, clipBox)) { numInsideVertices++; }
@@ -595,18 +626,7 @@ AABB clipTriangle(const ExplicitTriangle t, const AABB clipBox) {
         return result;
     } else {
         AABB result = emptyBox();
-        Polygon p;
-        p.vertCount = 3;
-        p.verts[0] = t.v0;
-        p.verts[1] = t.v1;
-        p.verts[2] = t.v2;
-
-        p = clipPolygon(makePlane(simd_make_float4( 1.0f,  0.0f,  0.0f, -clipBox.max.x)), p);
-        p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f,  clipBox.min.x)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  1.0f,  0.0f, -clipBox.max.y)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f, -1.0f,  0.0f,  clipBox.min.y)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f,  1.0f, -clipBox.max.z)), p);
-        p = clipPolygon(makePlane(simd_make_float4( 0.0f,  0.0f, -1.0f,  clipBox.min.z)), p);
+        Polygon p = clipTriangle(t, clipBox);
 
         for (int i = 0; i < p.vertCount; i++) {
             result = unionPointAndAABB(p.verts[i], result);
@@ -639,12 +659,16 @@ typedef struct PartitionCategory {
 
 // 0th bit = left, 1st bit = right, 2nd bit = planar
 PartitionCategory categorizeTriangle(const ExplicitTriangle t,
+                                     const AABB aabb,
                                      const int splitAxis,
                                      const float splitPos) {
+    Polygon p;
+    p = clipTriangle(t, aabb);
+
     PartitionCategory result = { false, false, true };
-    for (int v = 0; v < 3; v++) {
-        if (fabs(t.verts[v][splitAxis] - splitPos) >= PLANAR_TOLERANCE) {
-            if (t.verts[v][splitAxis] < splitPos) {
+    for (int v = 0; v < p.vertCount; v++) {
+        if (p.verts[v][splitAxis] != splitPos) {
+            if (p.verts[v][splitAxis] < splitPos) {
                 result.left = true;
                 result.planar = false;
             } else {
@@ -653,6 +677,7 @@ PartitionCategory categorizeTriangle(const ExplicitTriangle t,
             }
         }
     }
+
     if (result.planar) {
         assert(!result.left && !result.right);
     }
@@ -660,6 +685,7 @@ PartitionCategory categorizeTriangle(const ExplicitTriangle t,
 }
 
 void countPartitions(const unsigned int partitionCount,
+                     const AABB aabb,
                      const float partitions[],
                      const unsigned int partitionTypes[],
                      const ByteArray faceIndices,
@@ -674,11 +700,12 @@ void countPartitions(const unsigned int partitionCount,
         pCount[p] = 0;
     }
     for (int f = 0; f < faceIndices.count; f++) {
-        Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
+        unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
+        Triangle face = *getFaceFromArray(faces, faceIndex);
         ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
         for (int p = 0; p < partitionCount; p++) {
             unsigned int split = partitionTypes[p];
-            PartitionCategory category = categorizeTriangle(t, split, partitions[p]);
+            PartitionCategory category = categorizeTriangle(t, aabb, split, partitions[p]);
             if (category.left) lCount[p]++;
             if (category.right) rCount[p]++;
             if (category.planar) pCount[p]++;
@@ -696,13 +723,14 @@ SplitInfo getOptimalPartitionSAH(const AABB aabb,
     for (int f = 0; f < faceCount; f++) {
         Triangle face = *getFaceFromArray(faces, *getIndexFromArray(faceIndices, f));
         ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
-        AABB clippedBox = clipTriangle(t, aabb);
+        AABB clippedBox = clipBoxOfTriangle(t, aabb);
         if (!isEmpty(clippedBox)) {
             unsigned int lCount[6], rCount[6], pCount[6];
-            const unsigned int splitTypes[6] = { 0, 1, 2, 0, 1, 2 };
-            const float splitCandidates[6] = { clippedBox.min.x, clippedBox.min.y, clippedBox.min.z,
-                                               clippedBox.max.x, clippedBox.max.y, clippedBox.max.z };
-            countPartitions(6, splitCandidates, splitTypes, faceIndices, faces, vertices,
+            const unsigned int splitTypes[6] = { 0, 0, 1, 1, 2, 2 };
+            const float splitCandidates[6] = { clippedBox.min.x, clippedBox.max.x,
+                                               clippedBox.min.y, clippedBox.max.y,
+                                               clippedBox.min.z, clippedBox.max.z };
+            countPartitions(6, aabb, splitCandidates, splitTypes, faceIndices, faces, vertices,
                             lCount, rCount, pCount);
             // Evaluate each of the split candidates for the best one
             for (int i = 0; i < 6; i++) {
@@ -727,6 +755,159 @@ SplitInfo getOptimalPartitionSAH(const AABB aabb,
         }
     }
 
+    return optimalSplit;
+}
+
+enum EventType {
+    endEvent = 0,
+    planarEvent = 1,
+    startEvent = 2
+};
+
+typedef struct SplitEvent {
+    float position;
+    enum EventType eventType; // 0 end, 1 planar, 2 start
+} SplitEvent;
+
+// -1 : b was bigger, +1 : a was bigger, 0 equal
+
+int eventCmp(const void *a, const void *b) {
+    const SplitEvent ea = *((SplitEvent *) a);
+    const SplitEvent eb = *((SplitEvent *) b);
+
+    bool bGreater = (ea.position < eb.position) || (ea.position == eb.position && ea.eventType < eb.eventType);
+    if (bGreater) { return -1; }
+    return 1;
+}
+
+void printFaces(const ByteArray faceIndices,
+                const ByteArray faces,
+                const ByteArray vertices) {
+    const int faceCount = faceIndices.count;
+    for (int i = 0; i < faceCount; i++) {
+        const int index = *getIndexFromArray(faceIndices, i);
+        const Triangle face = *getFaceFromArray(faces, index);
+        ExplicitTriangle t = makeExplicitFace((const Vertex *)vertices.data, face);
+        printf("%d (%f, %f, %f), (%f, %f, %f), (%f, %f, %f)\n", index,
+               t.v0.x, t.v0.y, t.v0.z,
+               t.v1.x, t.v1.y, t.v1.z,
+               t.v2.x, t.v2.y, t.v2.z);
+    }
+}
+
+SplitInfo getOptimalPartitionSAHFaster1Dim(const AABB aabb,
+                                           const ByteArray faceIndices,
+                                           const ByteArray faces,
+                                           const ByteArray vertices,
+                                           const unsigned int dim) {
+    const int faceCount = faceIndices.count;
+
+    // Allocate an event for min and max candidates for face
+    const unsigned int eventCount = faceCount * 2;
+    SplitEvent *eventBuffer = malloc(eventCount * sizeof(SplitEvent));
+
+    unsigned int eventIndex = 0;
+    // Generate events for the faces
+    for (int f = 0; f < faceCount; f++) {
+        unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
+        Triangle face = *getFaceFromArray(faces, faceIndex);
+        ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
+        AABB clippedBox = clipBoxOfTriangle(t, aabb);
+        if (isEmpty(clippedBox)) {
+            continue;
+        }
+        if (clippedBox.max[dim] == clippedBox.min[dim]) {
+            SplitEvent event;
+            event.eventType = planarEvent;
+            event.position = clippedBox.max[dim];
+            eventBuffer[eventIndex++] = event;
+        } else {
+            SplitEvent start;
+            start.eventType = startEvent;
+            start.position = clippedBox.min[dim];
+            eventBuffer[eventIndex++] = start;
+
+            SplitEvent end;
+            end.eventType = endEvent;
+            end.position = clippedBox.max[dim];
+            eventBuffer[eventIndex++] = end;
+        }
+    }
+
+    // Sort events
+    qsort(eventBuffer, eventIndex, sizeof(SplitEvent), eventCmp);
+
+    // Initialize counters
+    unsigned int nL = 0;
+    unsigned int nR = faceCount;
+    unsigned int nP = 0;
+
+    // Sweep through all events
+    SplitInfo optimalSplit = { 0, 0, 0, 3, NAN, false, INFINITY };
+    unsigned int sweepIndex = 0;
+
+    while (sweepIndex < eventIndex) {
+        // Properties of the current plane
+        float planePos = eventBuffer[sweepIndex].position;
+        unsigned int p0 = 0;
+        unsigned int pp = 0;
+        unsigned int pn = 0;
+
+        // Sweep through all events with the same plane pos
+        while (sweepIndex < eventIndex && planePos == eventBuffer[sweepIndex].position) {
+            SplitEvent event = eventBuffer[sweepIndex];
+            if (event.eventType == 2) {
+                // Start event
+                pp++;
+            } else if (event.eventType == 1) {
+                // Planar event
+                p0++;
+            } else {
+                // End event
+                pn++;
+            }
+            sweepIndex++;
+        }
+
+        nP = p0;
+        nR -= pn + p0;
+
+        AABB left, right;
+        splitAABB(aabb, dim, planePos, &left, &right);
+        const float saL = surfaceArea(left);
+        const float saR = surfaceArea(right);
+        const bool partitionLeft = saL < saR;
+        const float cost = saL * (nL + partitionLeft * nP) + saR * (nR + (1 - partitionLeft) * nP);
+        if (cost < optimalSplit.cost) {
+            optimalSplit.cost = cost;
+            optimalSplit.lCount = nL + partitionLeft * nP;
+            optimalSplit.rCount = nR + (1 - partitionLeft) * nP;
+            optimalSplit.pCount = nP;
+            optimalSplit.splitAxis = dim;
+            optimalSplit.splitPos = planePos;
+            optimalSplit.planarToLeft = partitionLeft;
+            assert(optimalSplit.lCount + optimalSplit.rCount + optimalSplit.pCount >= faceCount);
+        }
+
+        nL += pp + p0;
+    }
+
+    free(eventBuffer);
+
+    return optimalSplit;
+}
+
+SplitInfo getOptimalPartitionSAHFaster(const AABB aabb,
+                                       const ByteArray faceIndices,
+                                       const ByteArray faces,
+                                       const ByteArray vertices) {
+    SplitInfo optimalSplit = { 0, 0, 0, 3, NAN, false, INFINITY };
+    for (int i = 0; i < 3; i++) {
+        SplitInfo split = getOptimalPartitionSAHFaster1Dim(aabb, faceIndices, faces, vertices, i);
+        if (split.cost < optimalSplit.cost) {
+            optimalSplit = split;
+        }
+    }
     return optimalSplit;
 }
 
@@ -758,7 +939,7 @@ SplitInfo getOptimalPartitionMedianSplit(const AABB aabb,
     // Count partition sizes
     unsigned int lCount[3], rCount[3], pCount[3];
     unsigned int splitTypes[3] = { 0, 1, 2 };
-    countPartitions(3, median, splitTypes, faceIndices, faces, vertices,
+    countPartitions(3, aabb, median, splitTypes, faceIndices, faces, vertices,
                     lCount, rCount, pCount);
 
     // Analyze split ratios to find optimal split
@@ -815,7 +996,7 @@ void partitionSerialKD(const AABB aabb,
     const int faceCount = faceIndices.count;
 
     // Get an optimal splitting plane for these polygons
-    SplitInfo split = getOptimalPartitionSAH(aabb, faceIndices, faces, vertices);
+    SplitInfo split = getOptimalPartitionSAHFaster(aabb, faceIndices, faces, vertices);
 
     // Build a leaf node if we hit termination condition
     if (shouldTerminate(split, aabb, faceCount)) {
@@ -856,7 +1037,7 @@ void partitionSerialKD(const AABB aabb,
             const unsigned int faceIndex = *getIndexFromArray(faceIndices, f);
             Triangle face = *getFaceFromArray(faces, faceIndex);
             ExplicitTriangle t = makeExplicitFace(getVertexFromArray(vertices, 0), face);
-            PartitionCategory category = categorizeTriangle(t, split.splitAxis, split.splitPos);
+            PartitionCategory category = categorizeTriangle(t, aabb, split.splitAxis, split.splitPos);
             if (category.planar) {
                 planarCounter++;
             }
@@ -1230,7 +1411,7 @@ void runTests() {
         t.v1 = simd_make_float3(0.0, 100.0, -100.0);
         t.v2 = simd_make_float3(0.0, -100.0, 0.0);
 
-        AABB clipped = clipTriangle(t, box);
+        AABB clipped = clipBoxOfTriangle(t, box);
         assert(!isEmpty(clipped));
     }
     {
@@ -1243,7 +1424,7 @@ void runTests() {
         t.v1 = simd_make_float3(3.0, 100.0, -100.0);
         t.v2 = simd_make_float3(3.0, -100.0, 0.0);
 
-        AABB clipped = clipTriangle(t, box);
+        AABB clipped = clipBoxOfTriangle(t, box);
         assert(isEmpty(clipped));
     }
 }
