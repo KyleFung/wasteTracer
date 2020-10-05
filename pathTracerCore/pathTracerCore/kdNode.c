@@ -591,6 +591,19 @@ Polygon clipTriangle(const ExplicitTriangle t, const AABB aabb) {
     p.verts[1] = t.v1;
     p.verts[2] = t.v2;
 
+    int numInsideVertices = 0;
+    if (inBox(t.v0, aabb)) { numInsideVertices++; }
+    if (inBox(t.v1, aabb)) { numInsideVertices++; }
+    if (inBox(t.v2, aabb)) { numInsideVertices++; }
+
+    if (numInsideVertices == 3) {
+        AABB result = emptyBox();
+        result = unionPointAndAABB(t.v0, result);
+        result = unionPointAndAABB(t.v1, result);
+        result = unionPointAndAABB(t.v2, result);
+        return p;
+    }
+
     p = clipPolygon(makePlane(simd_make_float4( 1.0f,  0.0f,  0.0f, -aabb.max.x)), p);
     p = clipPolygon(makePlane(simd_make_float4(-1.0f,  0.0f,  0.0f,  aabb.min.x)), p);
     p = clipPolygon(makePlane(simd_make_float4( 0.0f,  1.0f,  0.0f, -aabb.max.y)), p);
