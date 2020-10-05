@@ -782,8 +782,6 @@ typedef struct SplitEvent {
     enum EventType eventType; // 0 end, 1 planar, 2 start
 } SplitEvent;
 
-// -1 : b was bigger, +1 : a was bigger, 0 equal
-
 int eventCmp(const void *a, const void *b) {
     const SplitEvent ea = *((SplitEvent *) a);
     const SplitEvent eb = *((SplitEvent *) b);
