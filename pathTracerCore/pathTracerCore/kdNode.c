@@ -793,21 +793,6 @@ int eventCmp(const void *a, const void *b) {
     return 1;
 }
 
-void printFaces(const ByteArray faceIndices,
-                const ByteArray faces,
-                const ByteArray vertices) {
-    const int faceCount = faceIndices.count;
-    for (int i = 0; i < faceCount; i++) {
-        const int index = *getIndexFromArray(faceIndices, i);
-        const Triangle face = *getFaceFromArray(faces, index);
-        ExplicitTriangle t = makeExplicitFace((const Vertex *)vertices.data, face);
-        printf("%d (%f, %f, %f), (%f, %f, %f), (%f, %f, %f)\n", index,
-               t.v0.x, t.v0.y, t.v0.z,
-               t.v1.x, t.v1.y, t.v1.z,
-               t.v2.x, t.v2.y, t.v2.z);
-    }
-}
-
 SplitInfo getOptimalPartitionSAHFaster1Dim(const AABB aabb,
                                            const ByteArray faceIndices,
                                            const ByteArray faces,
