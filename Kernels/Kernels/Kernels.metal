@@ -510,8 +510,6 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
                                constant MaterialLookup*       materialLUT [[buffer(10)]],
                                uint2                          gid [[thread_position_in_grid]]) {
     const uint2 textureSize = {outRadiance.get_width(), outRadiance.get_height()};
-    float2 uv = static_cast<float2>(gid) / static_cast<float2>(textureSize);
-    Ray cameraRay = primaryRay(uv, float2(textureSize), camera.pos, camera.lookAt, camera.up);
 
     float3 result = numSamples == 0 ? float3(0) : float3(inRadiance.read(gid).xyz);
 
@@ -526,7 +524,12 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
         float3 throughPut = float3(1.0f, 1.0f, 1.0f);
         float pdf = 1.0f;
 
-        Ray ray = cameraRay;
+        // Generate a jittered camera ray
+        float jitterX = fract(pixelSeed + sample * 1.73205081);
+        float jitterY = fract(pixelSeed + sample * 2.64575131106);
+        float2 uv = float2(gid.x + jitterX, gid.y + jitterY) / static_cast<float2>(textureSize);
+        Ray ray = primaryRay(uv, float2(textureSize), camera.pos, camera.lookAt, camera.up);
+
         for (int rayDepth = 0; rayDepth < 3; rayDepth++) {
             const Intersection intersection = intersectionScene(scene, ray,
                                                                 instances, models, nodes, leaves, faces, vertices);
