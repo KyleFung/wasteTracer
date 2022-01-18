@@ -182,8 +182,8 @@ typedef struct SceneGPU {
 // CPU only
 #if !__METAL__
 typedef struct Texture {
-    char *textureName;
-    uint32_t *data;
+    char *filePath;
+    uint32_t index;
     uint32_t width;
     uint32_t height;
 } Texture;

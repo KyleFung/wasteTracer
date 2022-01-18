@@ -9,9 +9,9 @@ extension Triangle {
 }
 
 extension Texture {
-    init(_ name: String) {
+    init(_ filePath: String) {
         self.init()
-        self.textureName = toUnsafe(name)
+        self.filePath = toUnsafe(filePath)
     }
 }
 
@@ -169,8 +169,8 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
                 continue
             } else if trimmedLine.hasPrefix("map_Kd ") {
                 let textureName = trimmedLine.components(separatedBy: " ")[1]
-                if let texture = loadTexture(file: dirPath + "/" + textureName) {
-                    textures.append(texture)
+                if !loadTexture(file: dirPath + "/" + textureName, textureTable: &textures) {
+                    print("Diffuse texture load failed!")
                 }
             } else {
                 print("Unknown material attribute: ", trimmedLine)
@@ -181,43 +181,25 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
     }
 }
 
-func loadTexture(file: String) -> Texture? {
-    if let (rawBytes, size) = loadImage(file: file) {
+func loadTexture(file: String, textureTable: inout [Texture]) -> Bool {
+    if let (size) = getImageProperties(file: file) {
         var texture = Texture(file)
         texture.width = UInt32(size.width)
         texture.height = UInt32(size.height)
-        texture.data = rawBytes
-        return texture
+        texture.index = UInt32(textureTable.count)
+
+        textureTable.append(texture)
+        return true
     }
 
     print("Texture loading failed ")
-    return nil
+    return false
 }
 
-private func loadImage(file: String) -> (UnsafeMutablePointer<UInt32>, NSSize)? {
+private func getImageProperties(file: String) -> NSSize? {
     let img = NSImage(contentsOfFile: file)
     if let img = img {
-        let size = img.size
-        let rect = NSMakeRect(0, 0, size.width, size.height)
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-        let data = calloc(Int(size.width * size.height),
-                          MemoryLayout<UInt32>.size)!.assumingMemoryBound(to: UInt32.self)
-
-        let ctx = CGContext(data: data,
-                            width: Int(size.width),
-                            height: Int(size.height),
-                            bitsPerComponent: 8,
-                            bytesPerRow: Int(size.width * 4),
-                            space: colorSpace,
-                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-
-        let gfx = NSGraphicsContext.init(cgContext: ctx!, flipped: false)
-        NSGraphicsContext.current = gfx
-        img.draw(in: rect)
-        NSGraphicsContext.current = nil
-        return (data, size)
+        return img.size
     }
     print("Error loading image file ", file)
     return nil
