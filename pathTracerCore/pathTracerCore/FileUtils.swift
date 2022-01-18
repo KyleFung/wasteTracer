@@ -1,4 +1,6 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 
 public func imageFromRGBA32Bitmap(pixels: [simd_uchar4], width: Int, height: Int) -> CGImage? {
     guard width > 0 && height > 0 else { return nil }
