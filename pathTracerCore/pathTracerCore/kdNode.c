@@ -1170,9 +1170,10 @@ Scene buildBasicScene(Model model) {
     Instance floor;
     floor.primitive.type = 1;
     floor.primitive.box = plane;
-    floor.primitive.box.material.material.diffColor = simd_make_float3(0.9f, 0.01f, 0.01f);
+    floor.primitive.box.material.material.diffColor = simd_make_float3(0.5f, 0.5f, 0.5f);
     floor.primitive.box.material.material.specColor = simd_make_float3(0.01f, 0.01f, 0.01f);
     floor.primitive.box.material.material.specPower = 1.0f;
+    floor.primitive.box.material.material.textureIndex = -1;
     floor.primitive.box.material.numFaces = 1;
     floor.primitive.box.material.startFace = 0;
     floor.transform = identityTransform();
@@ -1184,6 +1185,7 @@ Scene buildBasicScene(Model model) {
     wall.primitive.box.material.material.diffColor = simd_make_float3(0.01f, 0.01f, 0.01f);
     wall.primitive.box.material.material.specColor = simd_make_float3(0.9f, 0.9f, 0.9f);
     wall.primitive.box.material.material.specPower = 100.0f;
+    wall.primitive.box.material.material.textureIndex = -1;
     wall.primitive.box.material.numFaces = 1;
     wall.primitive.box.material.startFace = 0;
     wall.transform = identityTransform();

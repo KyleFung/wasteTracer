@@ -115,6 +115,9 @@ public func loadModel(file: String) -> Model {
     let cMaterialLUT = UnsafeMutablePointer<MaterialLookup>.allocate(capacity: materialLUT.count)
     cMaterialLUT.initialize(from: UnsafeMutablePointer<MaterialLookup>(mutating: materialLUT), count: materialLUT.count)
 
+    let cTextures = UnsafeMutablePointer<Texture>.allocate(capacity: textures.count)
+    cTextures.initialize(from: UnsafeMutablePointer<Texture>(mutating: textures), count: textures.count)
+
     var model = Model(faces: cFaces,
                       vertices: cVertices,
                       faceCount: UInt32(faceCount),
@@ -126,7 +129,9 @@ public func loadModel(file: String) -> Model {
                       kdLeaves: nil,
                       leafCount: 0,
                       materialLUT: cMaterialLUT,
-                      matCount: UInt32(materialLUT.count))
+                      matCount: UInt32(materialLUT.count),
+                      textures: cTextures,
+                      textureCount: UInt32(textures.count))
 
     // Create kd tree for this model
     partitionModel(&model)
@@ -150,6 +155,7 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
                 materialName = trimmedLine.components(separatedBy: " ")[1]
                 if let materialName = materialName {
                     materials[materialName] = Material()
+                    materials[materialName]?.textureIndex = -1
                 }
             } else if trimmedLine.hasPrefix("Ns "), let materialName = materialName {
                 materials[materialName]?.specPower = Float(trimmedLine.split(separator: " ")[1])!
@@ -167,11 +173,12 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
                 continue
             } else if trimmedLine.hasPrefix("d ") {
                 continue
-            } else if trimmedLine.hasPrefix("map_Kd ") {
+            } else if trimmedLine.hasPrefix("map_Kd ") ,let materialName = materialName {
                 let textureName = trimmedLine.components(separatedBy: " ")[1]
                 if !loadTexture(file: dirPath + "/" + textureName, textureTable: &textures) {
                     print("Diffuse texture load failed!")
                 }
+                materials[materialName]?.textureIndex = Int32(textures.count) - 1
             } else {
                 print("Unknown material attribute: ", trimmedLine)
             }
@@ -182,25 +189,8 @@ func loadMaterials(file: String, materials: inout [String : Material], textures:
 }
 
 func loadTexture(file: String, textureTable: inout [Texture]) -> Bool {
-    if let (size) = getImageProperties(file: file) {
-        var texture = Texture(file)
-        texture.width = UInt32(size.width)
-        texture.height = UInt32(size.height)
-        texture.index = UInt32(textureTable.count)
-
-        textureTable.append(texture)
-        return true
-    }
-
-    print("Texture loading failed ")
-    return false
-}
-
-private func getImageProperties(file: String) -> NSSize? {
-    let img = NSImage(contentsOfFile: file)
-    if let img = img {
-        return img.size
-    }
-    print("Error loading image file ", file)
-    return nil
+    var texture = Texture(file)
+    texture.index = UInt32(textureTable.count)
+    textureTable.append(texture)
+    return true
 }

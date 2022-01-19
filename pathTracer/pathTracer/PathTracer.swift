@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import MetalKit
 import PathTracerCore
 
 class PathTracer {
@@ -25,6 +26,7 @@ class PathTracer {
     var radianceTexture0: MTLTexture?
     var radianceTexture1: MTLTexture?
     var noiseTexture: MTLTexture?
+    var textureAtlas: MTLTexture?
     var sceneBuffer: MTLBuffer?
     var instanceBuffer: MTLBuffer?
     var modelBuffer: MTLBuffer?
@@ -35,6 +37,7 @@ class PathTracer {
     var vertexBuffer: MTLBuffer?
     var numSamplesBuffer: MTLBuffer?
     var materialLUTBuffer: MTLBuffer?
+    var textureTable: MTLBuffer?
     var dummyBuffer: MTLBuffer?
 
     // Image fields
@@ -53,7 +56,75 @@ class PathTracer {
         noiseTexture?.replace(region: region, mipmapLevel: 0, withBytes: noise, bytesPerRow: 64 * 4)
     }
 
+    func generateTextureAtlas(model: Model) {
+        var metalTextures :[MTLTexture] = []
+        var textureEntries :[TextureGPU] = []
+
+        let loader = MTKTextureLoader.init(device: device!)
+
+        // Load all the textures and determine the atlas size. The atlas will be a horizontal
+        // strip containing every texture. Also populate the virtual texture table.
+        var maxHeight = 0
+        var totalWidth = 0
+        for i in 0..<model.textureCount {
+            var urlString = String.init(cString: model.textures[Int(i)].filePath)
+            urlString = "file://" + urlString
+            let url = URL.init(string: urlString)!
+            let texture = try! loader.newTexture(URL: url)
+            metalTextures.append(texture)
+
+            let entry = TextureGPU.init(x: UInt16(totalWidth), y: 0,
+                                        width: UInt16(texture.width),
+                                        height: UInt16(texture.height))
+            textureEntries.append(entry)
+
+            maxHeight = max(maxHeight, texture.height)
+            totalWidth += texture.width
+        }
+
+        // Create the texture atlas
+        textureTable = createBufferOrDummy(ptr: textureEntries,
+                                           len: MemoryLayout<TextureGPU>.stride * textureEntries.count)
+
+        // Allocate the atlas.
+        let atlasDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm_srgb,
+                                                                 width: max(totalWidth, 1),
+                                                                 height: max(maxHeight, 1),
+                                                                 mipmapped: false)
+        atlasDesc.usage = .shaderRead
+        textureAtlas = device!.makeTexture(descriptor: atlasDesc)
+
+        // Blit each texture into the atlas.
+        let blitQueue = device?.makeCommandQueue()
+        let blitBuffer = blitQueue?.makeCommandBuffer()
+        let encoder = blitBuffer?.makeBlitCommandEncoder()
+
+        // Blit textures into atlas
+        var originX = 0
+        for texture in metalTextures {
+            let origin = MTLOrigin.init(x: originX, y: 0, z: 0)
+            let size = MTLSize.init(width: texture.width, height: texture.height, depth: 1)
+
+            encoder?.copy(from: texture, sourceSlice: 0, sourceLevel: 0,
+                          sourceOrigin: MTLOrigin.init(x: 0, y: 0, z: 0), sourceSize: size,
+                          to: textureAtlas!, destinationSlice: 0, destinationLevel: 0,
+                          destinationOrigin: origin)
+
+            originX += texture.width
+        }
+
+        encoder?.endEncoding()
+        blitBuffer?.commit()
+        blitBuffer?.waitUntilCompleted()
+    }
+
     func createBufferOrDummy(ptr: UnsafeRawPointer?, len: Int) -> MTLBuffer? {
+        if dummyBuffer == nil {
+            // Create dummy buffer for things with 0 size
+            var number: UInt64 = 0
+            dummyBuffer = device!.makeBuffer(bytes: &number, length: MemoryLayout<UInt64>.stride)
+        }
+
         if len > 0, let ptr = ptr {
             return device!.makeBuffer(bytes: ptr, length: len)
         } else {
@@ -78,6 +149,9 @@ class PathTracer {
                                              materialLUTStart: 0, materialCount: max(1, model.matCount))
                 var camera = Camera.init(pos: eye, lookAt: lookAt, up: up)
 
+                // Generate texture atlas
+                generateTextureAtlas(model: model)
+
                 // Initialize the material LUT with the model's materials
                 var materialLUT: [MaterialLookup] = []
                 for i in 0..<model.matCount {
@@ -87,7 +161,8 @@ class PathTracer {
                 if materialLUT.isEmpty {
                     let defaultMaterial: Material = .init(diffColor: simd_float3(repeating: 0.01),
                                                           specColor: simd_float3(repeating: 0.9),
-                                                          specPower: Float(10.0))
+                                                          specPower: Float(10.0),
+                                                          textureIndex: -1)
                     materialLUT.append(.init(startFace: 0, numFaces: model.faceCount,
                                              material: defaultMaterial))
                 }
@@ -117,10 +192,6 @@ class PathTracer {
                                                          primitive: primitiveGPU)
                     instances.append(instanceGPU)
                 }
-
-                // Create dummy buffer for things with 0 size
-                var number: UInt32 = 0
-                dummyBuffer = device!.makeBuffer(bytes: &number, length: MemoryLayout<UInt32>.stride)
 
                 // Create buffer objects for scene
                 sceneBuffer = device!.makeBuffer(bytes: &sceneGPU, length: MemoryLayout<SceneGPU>.stride)
@@ -160,6 +231,7 @@ class PathTracer {
             radianceState = 0
         }
         encoder!.setTexture(noiseTexture!, index: 2)
+        encoder!.setTexture(textureAtlas!, index: 3)
 
         encoder!.setBuffer(sceneBuffer, offset: 0, index: 0)
         encoder!.setBuffer(instanceBuffer, offset: 0, index: 1)
@@ -170,6 +242,7 @@ class PathTracer {
         encoder!.setBuffer(faceBuffer, offset: 0, index: 6)
         encoder!.setBuffer(vertexBuffer, offset: 0, index: 7)
         encoder!.setBuffer(materialLUTBuffer, offset: 0, index: 10)
+        encoder!.setBuffer(textureTable, offset: 0, index: 11)
 
         // Increment number of samples
         encoder!.setBytes(&numIterations, length: MemoryLayout<UInt32>.stride, index: 8)

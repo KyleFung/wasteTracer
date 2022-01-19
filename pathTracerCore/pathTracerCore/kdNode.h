@@ -84,6 +84,7 @@ typedef struct Material {
     simd_float3 diffColor;
     simd_float3 specColor;
     float specPower;
+    int32_t textureIndex;
 } Material;
 
 typedef struct MaterialLookup {
@@ -179,13 +180,18 @@ typedef struct SceneGPU {
     uint32_t instanceCount;
 } SceneGPU;
 
+typedef struct TextureGPU {
+    uint16_t x;
+    uint16_t y;
+    uint16_t width;
+    uint16_t height;
+} TextureGPU;
+
 // CPU only
 #if !__METAL__
 typedef struct Texture {
     char *filePath;
     uint32_t index;
-    uint32_t width;
-    uint32_t height;
 } Texture;
 
 typedef struct Model {
@@ -201,6 +207,8 @@ typedef struct Model {
     unsigned int leafCount;
     MaterialLookup *materialLUT;
     unsigned int matCount;
+    Texture *textures;
+    unsigned int textureCount;
 } Model;
 
 typedef struct Scene {

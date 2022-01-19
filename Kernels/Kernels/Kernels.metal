@@ -399,15 +399,42 @@ Intersection intersectionScene(SceneGPU scene, Ray r,
     return closest;
 }
 
-Material defaultMaterial() {
-    Material mat;
+typedef struct ResolvedMaterial {
+    float3 diffColor;
+    float3 specColor;
+    float specPower;
+} ResolvedMaterial;
+
+ResolvedMaterial resolveMaterial(texture2d<float, access::read> textureAtlas,
+                                 constant const TextureGPU *textureTable,
+                                 const Material unresolved) {
+    ResolvedMaterial mat;
+    mat.diffColor = unresolved.diffColor;
+    mat.specColor = unresolved.specColor;
+    mat.specPower = unresolved.specPower;
+
+    if (unresolved.textureIndex != -1) {
+        const TextureGPU entry = textureTable[unresolved.textureIndex];
+        float3 sampledColor = textureAtlas.read(uint2(entry.x, entry.y) + uint2(entry.width, entry.height) / 2).xyz;
+        sampledColor = max(float3(0.001, 0.001, 0.001), sampledColor);
+        mat.diffColor *= sampledColor;
+    }
+
+    return mat;
+}
+
+ResolvedMaterial defaultMaterial() {
+    ResolvedMaterial mat;
     mat.diffColor = float3(0.5, 0.5, 0.5);
     mat.specColor = float3(0.2, 0.2, 0.2);
     mat.specPower = 10.0f;
     return mat;
 }
 
-Material resolveMaterial(constant const MaterialLookup *materialLUT, MaterialQuery query) {
+ResolvedMaterial resolveMaterial(texture2d<float, access::read> textureAtlas,
+                                 constant const TextureGPU *textureTable,
+                                 constant const MaterialLookup *materialLUT,
+                                 MaterialQuery query) {
     if (isEmptyQuery(query)) {
         return defaultMaterial();
     }
@@ -416,7 +443,7 @@ Material resolveMaterial(constant const MaterialLookup *materialLUT, MaterialQue
         unsigned int matIndex = query.materialLUTStart + i;
         MaterialLookup entry = materialLUT[matIndex];
         if (entry.startFace <= query.faceID && query.faceID < entry.startFace + entry.numFaces) {
-            return entry.material;
+            return resolveMaterial(textureAtlas, textureTable, entry.material);
         }
     }
     return defaultMaterial();
@@ -458,7 +485,7 @@ float3 specularDirection(float seed, float3 refl, float alpha) {
     return sqrt(1 - u) * (cos(a) * uu + sin(a) * vv) + sqrt(u) * refl;
 }
 
-float4 samplePhong(Material material, float seed, float3 normal, float3 in) {
+float4 samplePhong(ResolvedMaterial material, float seed, float3 normal, float3 in) {
     // Determine if we should sample diffuse or specular lobe
     const float d = material.diffColor.x + material.diffColor.y + material.diffColor.z;
     const float s = material.specColor.x + material.specColor.y + material.specColor.z;
@@ -482,7 +509,7 @@ float4 samplePhong(Material material, float seed, float3 normal, float3 in) {
     return float4(dir, pdf);
 }
 
-float3 phongBRDF(Material material, float3 norm, float3 in, float3 out) {
+float3 phongBRDF(ResolvedMaterial material, float3 norm, float3 in, float3 out) {
     const float diffBRDF = 1.0 / 3.14159;
     const float3 refl = normalize(2.0 * norm - in);
     const float specBRDF = ((material.specPower + 2.0) / (2.0 * 3.14159)) *
@@ -497,6 +524,7 @@ float extractSeed(texture2d<float, access::read> whiteNoise, uint2 pixelPos) {
 kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[texture(0)]],
                                texture2d<half, access::read>  inRadiance  [[texture(1)]],
                                texture2d<float, access::read> whiteNoise  [[texture(2)]],
+                               texture2d<float, access::read> textureAtlas[[texture(3)]],
                                constant SceneGPU&             scene       [[buffer(0)]],
                                constant InstanceGPU*          instances   [[buffer(1)]],
                                constant ModelGPU*             models      [[buffer(2)]],
@@ -508,6 +536,7 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
                                constant unsigned int&         numSamples  [[buffer(8)]],
                                constant unsigned int&         newSamples  [[buffer(9)]],
                                constant MaterialLookup*       materialLUT [[buffer(10)]],
+                               constant TextureGPU*           textureTable[[buffer(11)]],
                                uint2                          gid [[thread_position_in_grid]]) {
     const uint2 textureSize = {outRadiance.get_width(), outRadiance.get_height()};
 
@@ -535,7 +564,10 @@ kernel void intersectionKernel(texture2d<half, access::write> outRadiance [[text
                                                                 instances, models, nodes, leaves, faces, vertices);
             if (isHit(intersection) && any(throughPut > 0.02)) {
                 // Resolve the material of the hit point
-                Material material = resolveMaterial(materialLUT, intersection.materialQuery);
+                ResolvedMaterial material = resolveMaterial(textureAtlas,
+                                                            textureTable,
+                                                            materialLUT,
+                                                            intersection.materialQuery);
 
                 // Sample BRDF of the hit point
                 sampleSeed = goldenSequence(sampleSeed);
